@@ -61,6 +61,30 @@ struct MyProfileView: View {
 							.font(.title)
 						Text(profile.login)
 							.font(.subheadline)
+						if let email = profile.email, !email.isEmpty {
+							Text(email)
+								.font(.subheadline)
+						}
+						if let phone = profile.phone, !phone.isEmpty {
+							Text(phone)
+								.font(.subheadline)
+						}
+						if let campus = profile.campusName, !campus.isEmpty {
+							Text(campus)
+								.font(.subheadline)
+						}
+						if let kind = profile.userKind, !kind.isEmpty {
+							Text(kind.capitalized)
+								.font(.subheadline)
+						}
+						if let poolMonth = profile.poolMonth, let poolYear = profile.poolYear {
+							Text("Piscine: \(poolMonth) \(poolYear)")
+								.font(.subheadline)
+						}
+						if let isActive = profile.isActive {
+							Text(isActive ? "Actif" : "Inactif")
+								.font(.subheadline)
+						}
 						Text("Wallet: \(profile.wallet) | Points: \(profile.correctionPoint)")
 							.font(.subheadline)
 						if !profile.cursus.isEmpty {
