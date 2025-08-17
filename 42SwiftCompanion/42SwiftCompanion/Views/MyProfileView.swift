@@ -48,87 +48,45 @@ struct MyProfileView: View {
 				ProgressView()
 			} else if let profile = viewModel.profile {
 				ScrollView {
-					VStack(spacing: 16) {
-						if let url = profile.imageURL {
-							AsyncImage(url: url) { image in
-								image.resizable().aspectRatio(contentMode: .fit)
-							} placeholder: {
-								Color.gray.frame(width: 120, height: 120)
-							}
-							.frame(width: 120, height: 120)
-						}
-						Text(profile.displayName)
-							.font(.title)
-						Text(profile.login)
-							.font(.subheadline)
-						if let email = profile.email, !email.isEmpty {
-							Text(email)
-								.font(.subheadline)
-						}
-						if let phone = profile.phone, !phone.isEmpty {
-							Text(phone)
-								.font(.subheadline)
-						}
-						if let campus = profile.campusName, !campus.isEmpty {
-							Text(campus)
-								.font(.subheadline)
-						}
-						if let kind = profile.userKind, !kind.isEmpty {
-							Text(kind.capitalized)
-								.font(.subheadline)
-						}
-						if let poolMonth = profile.poolMonth, let poolYear = profile.poolYear {
-							Text("Piscine: \(poolMonth) \(poolYear)")
-								.font(.subheadline)
-						}
-						if let isActive = profile.isActive {
-							Text(isActive ? "Actif" : "Inactif")
-								.font(.subheadline)
-						}
-						Text("Wallet: \(profile.wallet) | Points: \(profile.correctionPoint)")
-							.font(.subheadline)
-						if !profile.cursus.isEmpty {
-							VStack(alignment: .leading, spacing: 4) {
-								Text("Cursus:")
-								ForEach(profile.cursus) { cursus in
-									Text(cursus.name ?? "Cursus")
+					VStack(spacing: 24) {
+						SectionCard(title: "Identité") {
+							if let url = profile.imageURL {
+								AsyncImage(url: url) { image in
+									image.resizable().aspectRatio(contentMode: .fit)
+								} placeholder: {
+									Color.gray.frame(width: 120, height: 120)
 								}
+								.frame(width: 120, height: 120)
 							}
+							ProfileTextGroup(texts: [profile.displayName], font: .title)
+							ProfileTextGroup(texts: [profile.login], font: .subheadline)
 						}
-						if !profile.coalitions.isEmpty {
-							VStack(alignment: .leading, spacing: 4) {
-								Text("Coalitions:")
-								ForEach(profile.coalitions) { coalition in
-									Text("\(coalition.name) | Score: \(coalition.score ?? 0)")
-								}
-							}
+						SectionCard(title: "Contact et campus") {
+							ProfileTextGroup(texts: profile.displayableContact, font: .subheadline)
 						}
-						if !profile.achievements.isEmpty {
-							VStack(alignment: .leading, spacing: 4) {
-								Text("Succès:")
-								ForEach(profile.achievements) { a in
-									Text(a.name)
-								}
-							}
+						SectionCard(title: "Statut et cursus") {
+							ProfileTextGroup(texts: profile.displayableStatus, font: .subheadline)
 						}
-						if !profile.finishedProjects.isEmpty {
-							VStack(alignment: .leading, spacing: 4) {
-								Text("Projets terminés:")
-								ForEach(profile.finishedProjects) { p in
-									Text("\(p.name) | Note: \(p.finalMark ?? 0)")
-								}
-							}
+						SectionCard(title: "Points") {
+							ProfileTextGroup(texts: ["Wallet: \(profile.wallet) | Points: \(profile.correctionPoint)"], font: .subheadline)
 						}
-						if !profile.activeProjects.isEmpty {
-							VStack(alignment: .leading, spacing: 4) {
-								Text("Projets en cours:")
-								ForEach(profile.activeProjects) { p in
-									Text("\(p.name) | Statut: \(p.status ?? "")")
-								}
-							}
+						SectionCard(title: "Cursus") {
+							ProfileTextGroup(texts: profile.displayableCursus)
 						}
-						if let host = profile.currentHost {
-							Text("Poste actuel: \(host)")
+						SectionCard(title: "Coalitions") {
+							ProfileTextGroup(texts: profile.displayableCoalitions)
+						}
+						SectionCard(title: "Succès") {
+							ProfileTextGroup(texts: profile.displayableAchievements)
+						}
+						SectionCard(title: "Projets terminés") {
+							ProfileTextGroup(texts: profile.displayableFinishedProjects)
+						}
+						SectionCard(title: "Projets en cours") {
+							ProfileTextGroup(texts: profile.displayableActiveProjects)
+						}
+						SectionCard(title: "Poste") {
+							ProfileTextGroup(texts: profile.displayableHost)
 						}
 					}
 					.padding()
@@ -143,6 +101,60 @@ struct MyProfileView: View {
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
 		.task {
 			await viewModel.fetchProfile()
+		}
+	}
+}
+
+struct SectionCard<Content: View>: View {
+	let title: String
+	let content: Content
+	init(title: String, @ViewBuilder content: () -> Content) {
+		self.title = title
+		self.content = content()
+	}
+	var body: some View {
+		if let group = content as? ProfileTextGroup, group.isEmpty {
+			EmptyView()
+		} else {
+			VStack(alignment: .leading, spacing: 12) {
+				Text(title)
+					.font(.system(size: 22, weight: .bold, design: .rounded))
+					.foregroundStyle(Color.accentColor)
+					.padding(.bottom, 4)
+				content
+			}
+			.padding(20)
+			.frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
+			.background(
+				RoundedRectangle(cornerRadius: 22, style: .continuous)
+					.fill(Color.accentColor.opacity(0.08))
+			)
+			.overlay(
+				RoundedRectangle(cornerRadius: 22, style: .continuous)
+					.stroke(Color.accentColor.opacity(0.18), lineWidth: 1.5)
+			)
+			.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
+			.padding(.horizontal, 8)
+		}
+	}
+}
+
+struct ProfileTextGroup: View {
+	let texts: [String]
+	var font: Font = .body
+
+	var isEmpty: Bool { texts.isEmpty || texts.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } }
+
+	var body: some View {
+		if isEmpty {
+			EmptyView()
+		} else {
+			VStack(alignment: .leading, spacing: 4) {
+				ForEach(texts.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }, id: \.self) { text in
+					Text(text)
+						.font(font)
+				}
+			}
 		}
 	}
 }
