@@ -16,8 +16,10 @@ final class ProfileStore: ObservableObject {
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var coalitionsState: SectionLoadState = .idle
     @Published private(set) var projectsState: SectionLoadState = .idle
+    @Published private(set) var weeklyLog: [DailyLog] = []
 
     private let repo = ProfileRepository.shared
+    private let locRepo = LocationRepository.shared
     private let cache = ProfileCache()
     private var loopTask: Task<Void, Never>?
 
@@ -44,6 +46,7 @@ final class ProfileStore: ObservableObject {
         profile = nil
         coalitionsState = .idle
         projectsState = .idle
+        weeklyLog = []
         lastUpdated = nil
     }
 
@@ -63,12 +66,12 @@ final class ProfileStore: ObservableObject {
             projectsState = .loading
 
             let repoRef = repo
-            let coalitionsTask = Task.detached(priority: .background) {
-                try await repoRef.fetchCoalitions(login: login)
-            }
-            let projectsTask = Task.detached(priority: .background) {
-                try await repoRef.fetchProjects(login: login)
-            }
+            let locRef = locRepo
+
+            let coalitionsTask = Task.detached(priority: .background) { try await repoRef.fetchCoalitions(login: login) }
+            let projectsTask = Task.detached(priority: .background) { try await repoRef.fetchProjects(login: login) }
+            let hostTask = Task.detached(priority: .background) { try await locRef.fetchCurrentHost(login: login) }
+            let statsTask = Task.detached(priority: .background) { try await locRef.lastDaysStats(login: login, days: 7) }
 
             do {
                 let coalitions = try await coalitionsTask.value
@@ -88,6 +91,20 @@ final class ProfileStore: ObservableObject {
                 projectsState = .loaded
             } catch {
                 projectsState = .failed
+            }
+
+            do {
+                let host = try await hostTask.value
+                if let current = profile {
+                    profile = repo.applyCurrentHost(to: current, host: host)
+                }
+            } catch {}
+
+            do {
+                let stats = try await statsTask.value
+                weeklyLog = stats
+            } catch {
+                weeklyLog = []
             }
 
             if let p = profile {

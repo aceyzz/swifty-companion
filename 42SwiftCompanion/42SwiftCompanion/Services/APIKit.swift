@@ -150,4 +150,8 @@ final class ProfileRepository {
         }.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
         return UserProfile(id: profile.id, login: profile.login, displayName: profile.displayName, wallet: profile.wallet, correctionPoint: profile.correctionPoint, imageURL: profile.imageURL, poolMonth: profile.poolMonth, poolYear: profile.poolYear, campusName: profile.campusName, userKind: profile.userKind, isActive: profile.isActive, email: profile.email, phone: profile.phone, userNameWithTitle: profile.userNameWithTitle, currentHost: profile.currentHost, cursus: profile.cursus, coalitions: profile.coalitions, achievements: profile.achievements, finishedProjects: finished, activeProjects: active)
     }
+
+    func applyCurrentHost(to profile: UserProfile, host: String?) -> UserProfile {
+        UserProfile(id: profile.id, login: profile.login, displayName: profile.displayName, wallet: profile.wallet, correctionPoint: profile.correctionPoint, imageURL: profile.imageURL, poolMonth: profile.poolMonth, poolYear: profile.poolYear, campusName: profile.campusName, userKind: profile.userKind, isActive: profile.isActive, email: profile.email, phone: profile.phone, userNameWithTitle: profile.userNameWithTitle, currentHost: host, cursus: profile.cursus, coalitions: profile.coalitions, achievements: profile.achievements, finishedProjects: profile.finishedProjects, activeProjects: profile.activeProjects)
+    }
 }
