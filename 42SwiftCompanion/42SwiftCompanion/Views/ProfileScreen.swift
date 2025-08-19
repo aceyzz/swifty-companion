@@ -14,50 +14,83 @@ struct MyProfileView: View {
                                     AsyncImage(url: url) { image in
                                         image.resizable().aspectRatio(contentMode: .fit)
                                     } placeholder: {
-                                        Color.gray.frame(width: 120, height: 120)
+                                        Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16))
                                     }
                                     .frame(width: 120, height: 120)
+                                } else {
+                                    Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16)).redacted(reason: .placeholder)
                                 }
                                 ProfileTextList(texts: [profile.displayName], font: .title)
                                 ProfileTextList(texts: [profile.login], font: .subheadline)
                             }
                         }
-                        if !profile.displayableContact.isEmpty {
-                            SectionCard(title: "Contact et campus") {
+                        SectionCard(title: "Contact et campus") {
+                            if profile.displayableContact.isEmpty {
+                                LoadingListPlaceholder(lines: 2, compact: true)
+                            } else {
                                 ProfileTextList(texts: profile.displayableContact, font: .subheadline)
                             }
                         }
-                        if !profile.displayableStatus.isEmpty {
-                            SectionCard(title: "Statut et cursus") {
-                                ProfileTextList(texts: profile.displayableStatus, font: .subheadline)
+                        SectionCard(title: "Statut et cursus") {
+                            if profile.displayableStatus.isEmpty && profile.displayableCursus.isEmpty {
+                                LoadingListPlaceholder(lines: 2, compact: true)
+                            } else {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ProfileTextList(texts: profile.displayableStatus, font: .subheadline)
+                                    ProfileTextList(texts: profile.displayableCursus, font: .subheadline)
+                                }
                             }
                         }
                         SectionCard(title: "Points") {
                             ProfileTextList(texts: ["Wallet: \(profile.wallet) | Points: \(profile.correctionPoint)"], font: .subheadline)
                         }
-                        if !profile.displayableCursus.isEmpty {
-                            SectionCard(title: "Cursus") {
-                                ProfileTextList(texts: profile.displayableCursus)
+                        SectionCard(title: "Coalitions") {
+                            switch profileStore.coalitionsState {
+                            case .loading:
+                                LoadingListPlaceholder(lines: 2, compact: true)
+                            case .failed:
+                                RetryRow(title: "Impossible de charger les coalitions") { profileStore.retryCoalitions() }
+                            default:
+                                if profile.displayableCoalitions.isEmpty {
+                                    EmptyRow(text: "Aucune coalition")
+                                } else {
+                                    ProfileTextList(texts: profile.displayableCoalitions)
+                                }
                             }
                         }
-                        if !profile.displayableCoalitions.isEmpty {
-                            SectionCard(title: "Coalitions") {
-                                ProfileTextList(texts: profile.displayableCoalitions)
-                            }
-                        }
-                        if !profile.displayableAchievements.isEmpty {
-                            SectionCard(title: "Succès") {
+                        SectionCard(title: "Succès") {
+                            if profile.displayableAchievements.isEmpty {
+                                EmptyRow(text: "Aucun succès")
+                            } else {
                                 ProfileTextList(texts: profile.displayableAchievements)
                             }
                         }
-                        if !profile.displayableFinishedProjects.isEmpty {
-                            SectionCard(title: "Projets terminés") {
-                                ProfileTextList(texts: profile.displayableFinishedProjects)
+                        SectionCard(title: "Projets terminés") {
+                            switch profileStore.projectsState {
+                            case .loading:
+                                LoadingListPlaceholder(lines: 3)
+                            case .failed:
+                                RetryRow(title: "Impossible de charger les projets") { profileStore.retryProjects() }
+                            default:
+                                if profile.displayableFinishedProjects.isEmpty {
+                                    EmptyRow(text: "Aucun projet terminé")
+                                } else {
+                                    ProfileTextList(texts: profile.displayableFinishedProjects)
+                                }
                             }
                         }
-                        if !profile.displayableActiveProjects.isEmpty {
-                            SectionCard(title: "Projets en cours") {
-                                ProfileTextList(texts: profile.displayableActiveProjects)
+                        SectionCard(title: "Projets en cours") {
+                            switch profileStore.projectsState {
+                            case .loading:
+                                LoadingListPlaceholder(lines: 2)
+                            case .failed:
+                                RetryRow(title: "Impossible de charger les projets") { profileStore.retryProjects() }
+                            default:
+                                if profile.displayableActiveProjects.isEmpty {
+                                    EmptyRow(text: "Aucun projet en cours")
+                                } else {
+                                    ProfileTextList(texts: profile.displayableActiveProjects)
+                                }
                             }
                         }
                         if !profile.displayableHost.isEmpty {
@@ -110,10 +143,46 @@ struct ProfileTextList: View {
     let texts: [String]
     var font: Font = .body
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(texts.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }, id: \.self) { text in
                 Text(text).font(font)
             }
         }
+    }
+}
+
+struct LoadingListPlaceholder: View {
+    let lines: Int
+    var compact: Bool = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+            ForEach(0..<lines, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.gray.opacity(0.3))
+                    .frame(height: compact ? 10 : 14)
+                    .redacted(reason: .placeholder)
+            }
+        }
+    }
+}
+
+struct RetryRow: View {
+    let title: String
+    let action: () -> Void
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(title)
+                .font(.subheadline)
+            Spacer()
+            Button("Réessayer", action: action)
+        }
+    }
+}
+
+struct EmptyRow: View {
+    let text: String
+    var body: some View {
+        Text(text).font(.subheadline).foregroundStyle(.secondary)
     }
 }
