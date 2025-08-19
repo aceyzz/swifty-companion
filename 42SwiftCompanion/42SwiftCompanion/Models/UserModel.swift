@@ -1,6 +1,6 @@
 import Foundation
 
-struct UserProfile: Identifiable {
+struct UserProfile: Identifiable, Codable {
     let id: String
     let login: String
     let displayName: String
@@ -22,7 +22,7 @@ struct UserProfile: Identifiable {
     let finishedProjects: [Project]
     let activeProjects: [ActiveProject]
 
-    struct Cursus: Identifiable {
+    struct Cursus: Identifiable, Codable {
         let id: Int
         let grade: String?
         let level: Double?
@@ -31,7 +31,7 @@ struct UserProfile: Identifiable {
         let name: String?
     }
 
-    struct Coalition: Identifiable {
+    struct Coalition: Identifiable, Codable {
         let id: Int
         let name: String
         let slug: String
@@ -41,14 +41,14 @@ struct UserProfile: Identifiable {
         let rank: Int?
     }
 
-    struct Achievement: Identifiable {
+    struct Achievement: Identifiable, Codable {
         let id: Int
         let name: String
         let description: String
         let image: URL?
     }
 
-    struct Project: Identifiable {
+    struct Project: Identifiable, Codable {
         let id: String
         let name: String
         let slug: String
@@ -60,7 +60,7 @@ struct UserProfile: Identifiable {
         let createdAt: Date?
     }
 
-    struct ActiveProject: Identifiable {
+    struct ActiveProject: Identifiable, Codable {
         let id: String
         let name: String
         let slug: String
