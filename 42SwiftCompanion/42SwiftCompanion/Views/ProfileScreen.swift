@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct MyProfileView: View {
     @EnvironmentObject var profileStore: ProfileStore
@@ -43,6 +44,9 @@ struct MyProfileView: View {
                         }
                         SectionCard(title: "Points") {
                             ProfileTextList(texts: ["Wallet: \(profile.wallet) | Points: \(profile.correctionPoint)"], font: .subheadline)
+                        }
+                        SectionCard(title: "Temps connecté (7 j)") {
+                            WeeklyLogCard(logs: profileStore.weeklyLog)
                         }
                         SectionCard(title: "Coalitions") {
                             switch profileStore.coalitionsState {
@@ -148,6 +152,138 @@ struct ProfileTextList: View {
                 Text(text).font(font)
             }
         }
+    }
+}
+
+struct WeeklyLogCard: View {
+    let logs: [DailyLog]
+
+    private var sorted: [DailyLog] {
+        if logs.isEmpty {
+            let cal = Calendar.current
+            let today = cal.startOfDay(for: Date())
+            return (0..<7).compactMap { i in
+                guard let d = cal.date(byAdding: .day, value: -(6 - i), to: today) else { return nil }
+                return DailyLog(date: d, hours: 0)
+            }
+        } else {
+            return logs.sorted { $0.date < $1.date }
+        }
+    }
+
+    private var totalHours: Double {
+        sorted.reduce(0) { $0 + $1.hours }
+    }
+
+    private var avgHours: Double {
+        guard !sorted.isEmpty else { return 0 }
+        return totalHours / Double(sorted.count)
+    }
+
+    private var yMax: Double {
+        let m = sorted.map(\.hours).max() ?? 0
+        return max(1, ceil(m + 0.5))
+    }
+
+    private var xDomain: ClosedRange<Date> {
+        let cal = Calendar.current
+        guard let first = sorted.first?.date, let last = sorted.last?.date else {
+            let s = cal.startOfDay(for: Date())
+            let e = cal.date(byAdding: .day, value: 1, to: s) ?? s
+            return s...e
+        }
+        let s = cal.startOfDay(for: first)
+        let e = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: last)) ?? last
+        return s...e
+    }
+
+    private var hasAnyData: Bool {
+        sorted.contains { $0.hours > 0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                StatPill(title: "Total", value: formattedHours(totalHours))
+                StatPill(title: "Moyenne", value: formattedHours(avgHours))
+                Spacer()
+            }
+            Chart(sorted) { item in
+                BarMark(
+                    x: .value("Date", item.date),
+                    y: .value("Heures", item.hours)
+                )
+                .cornerRadius(8)
+                .foregroundStyle(Color.accentColor)
+                .opacity(item.hours > 0 ? 1 : 0.35)
+                if item.hours > 0 {
+                    PointMark(x: .value("Date", item.date), y: .value("Heures", item.hours))
+                }
+            }
+            .chartXScale(domain: xDomain)
+            .chartYScale(domain: 0...yMax)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let d = value.as(Date.self) {
+                            Text(d, format: .dateTime.weekday(.narrow))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let v = value.as(Double.self) {
+                            Text(v.formatted(.number.precision(.fractionLength(0))))
+                        }
+                    }
+                }
+            }
+            .frame(height: 200)
+            .overlay {
+                if !hasAnyData {
+                    VStack(spacing: 6) {
+                        Image(systemName: "wave.3.right.circle")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                        Text("Aucune présence sur les 7 derniers jours")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func formattedHours(_ h: Double) -> String {
+        let minutes = Int((h * 60).rounded())
+        let hh = minutes / 60
+        let mm = minutes % 60
+        return mm == 0 ? "\(hh) h" : "\(hh) h \(mm) min"
+    }
+}
+
+private struct StatPill: View {
+    let title: String
+    let value: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.headline)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.accentColor.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
+        )
     }
 }
 

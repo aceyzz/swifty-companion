@@ -23,21 +23,34 @@ final class LocationRepository {
     }
 
     func lastDaysStats(login: String, days: Int) async throws -> [DailyLog] {
+        let cal = Calendar.current
         let now = Date()
-        guard let start = Calendar.current.date(byAdding: .day, value: -days, to: now) else { return [] }
-        let locations = try await fetchLocations(login: login, from: start, to: now)
-        return aggregate(locs: locations, from: start, to: now)
+        let startOfToday = cal.startOfDay(for: now)
+        guard let start = cal.date(byAdding: .day, value: -(days - 1), to: startOfToday) else { return zeros(from: startOfToday, days: days) }
+        let fromStr = DateParser.isoString(start)
+        let toStr = DateParser.isoString(now)
+        do {
+            async let byBegin = ranged(login: login, key: "begin_at", fromStr: fromStr, toStr: toStr)
+            async let byEnd = ranged(login: login, key: "end_at", fromStr: fromStr, toStr: toStr)
+            async let active = activeOnly(login: login)
+            let merged = deduplicated((try await byBegin) + (try await byEnd) + (try await active))
+            let logs = aggregate(locs: merged, from: start, to: now)
+            return Array(logs.suffix(days))
+        } catch {
+            let lookbackDays = max(days * 2, 14)
+            guard let threshold = cal.date(byAdding: .day, value: -lookbackDays, to: startOfToday) else { return zeros(from: startOfToday, days: days) }
+            let recent = try await recentWithoutRange(login: login, stopWhenOlderThan: threshold)
+            let logs = aggregate(locs: recent, from: start, to: now)
+            return Array(logs.suffix(days))
+        }
     }
 
-    private func fetchLocations(login: String, from: Date, to: Date) async throws -> [LocationRaw] {
-        let fmt = ISO8601DateFormatter()
-        let fromStr = fmt.string(from: from)
-        let toStr = fmt.string(from: to)
-        return try await api.pagedRequest { page in
+    private func ranged(login: String, key: String, fromStr: String, toStr: String) async throws -> [LocationRaw] {
+        try await api.pagedRequest { page in
             Endpoint(
                 path: "/v2/users/\(login)/locations",
                 queryItems: [
-                    URLQueryItem(name: "range[begin_at]", value: "\(fromStr),\(toStr)"),
+                    URLQueryItem(name: "range[\(key)]", value: "\(fromStr),\(toStr)"),
                     URLQueryItem(name: "page[size]", value: "100"),
                     URLQueryItem(name: "page", value: "\(page)")
                 ]
@@ -45,11 +58,67 @@ final class LocationRepository {
         }
     }
 
+    private func activeOnly(login: String) async throws -> [LocationRaw] {
+        try await api.pagedRequest { page in
+            Endpoint(
+                path: "/v2/users/\(login)/locations",
+                queryItems: [
+                    URLQueryItem(name: "filter[active]", value: "true"),
+                    URLQueryItem(name: "page[size]", value: "100"),
+                    URLQueryItem(name: "page", value: "\(page)")
+                ]
+            )
+        }
+    }
+
+    private func recentWithoutRange(login: String, stopWhenOlderThan threshold: Date) async throws -> [LocationRaw] {
+        var all: [LocationRaw] = []
+        var page = 1
+        var shouldContinue = true
+        while shouldContinue {
+            let endpoint = Endpoint(
+                path: "/v2/users/\(login)/locations",
+                queryItems: [
+                    URLQueryItem(name: "page[size]", value: "100"),
+                    URLQueryItem(name: "page", value: "\(page)")
+                ]
+            )
+            let items: [LocationRaw] = try await api.request(endpoint, as: [LocationRaw].self)
+            if items.isEmpty { break }
+            all.append(contentsOf: items)
+            if items.last.map({ DateParser.iso($0.begin_at) ?? .distantPast }) ?? .distantPast < threshold {
+                shouldContinue = false
+            } else {
+                page += 1
+            }
+        }
+        return deduplicated(all)
+    }
+
+    private func deduplicated(_ items: [LocationRaw]) -> [LocationRaw] {
+        var seen: Set<Int> = []
+        var result: [LocationRaw] = []
+        for it in items {
+            if let id = it.id {
+                if seen.contains(id) { continue }
+                seen.insert(id)
+                result.append(it)
+            } else {
+                if !result.contains(where: { $0.begin_at == it.begin_at && $0.end_at == it.end_at && $0.host == it.host }) {
+                    result.append(it)
+                }
+            }
+        }
+        return result
+    }
+
     private func aggregate(locs: [LocationRaw], from: Date, to: Date) -> [DailyLog] {
-        var bucket: [Date: TimeInterval] = [:]
         let cal = Calendar.current
-        var day = cal.startOfDay(for: from)
-        while day <= to {
+        let startDay = cal.startOfDay(for: from)
+        let endDay = cal.startOfDay(for: to)
+        var bucket: [Date: TimeInterval] = [:]
+        var day = startDay
+        while day <= endDay {
             bucket[day] = 0
             day = cal.date(byAdding: .day, value: 1, to: day)!
         }
@@ -61,7 +130,7 @@ final class LocationRepository {
             if end <= start { continue }
             while start < end {
                 let dayStart = cal.startOfDay(for: start)
-                let nextDay = cal.date(byAdding: .day, value: 1, to: dayStart) ?? end
+                let nextDay = cal.date(byAdding: .day, value: 1, to: dayStart)!
                 let segmentEnd = min(end, nextDay)
                 let delta = max(0, segmentEnd.timeIntervalSince(start))
                 bucket[dayStart, default: 0] += delta
@@ -70,5 +139,14 @@ final class LocationRepository {
         }
         let keys = bucket.keys.sorted()
         return keys.map { DailyLog(date: $0, hours: (bucket[$0] ?? 0) / 3600.0) }
+    }
+
+    private func zeros(from todayStart: Date, days: Int) -> [DailyLog] {
+        let cal = Calendar.current
+        let start = cal.date(byAdding: .day, value: -(days - 1), to: todayStart) ?? todayStart
+        return (0..<days).compactMap { i in
+            let d = cal.date(byAdding: .day, value: i, to: start) ?? start
+            return DailyLog(date: d, hours: 0)
+        }
     }
 }

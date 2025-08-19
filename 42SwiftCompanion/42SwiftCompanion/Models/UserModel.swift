@@ -128,7 +128,7 @@ struct ProjectRaw: Decodable {
     let current_team_id: Int?
     let teams: [TeamRaw]?
 }
-struct LocationRaw: Decodable { let begin_at: String?; let end_at: String?; let host: String? }
+struct LocationRaw: Decodable { let id: Int?; let begin_at: String?; let end_at: String?; let host: String? }
 struct UserInfoRaw: Decodable {
     let login: String
     let displayname: String
@@ -153,9 +153,24 @@ struct UserInfoRaw: Decodable {
 }
 
 enum DateParser {
+    private static let fUTCFrac: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let fUTC: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
     static func iso(_ str: String?) -> Date? {
         guard let s = str, !s.isEmpty else { return nil }
-        return ISO8601DateFormatter().date(from: s)
+        return fUTCFrac.date(from: s) ?? fUTC.date(from: s)
+    }
+    static func isoString(_ date: Date) -> String {
+        fUTCFrac.string(from: date)
     }
 }
 
