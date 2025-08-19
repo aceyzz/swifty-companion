@@ -117,7 +117,7 @@ final class AuthService: NSObject, ObservableObject {
 	func checkAuthentication() {
 		if let token = accessToken, let expiration = tokenExpiration, expiration > Date(), !token.isEmpty {
 			isAuthenticated = true
-			startRefreshLoop()
+			Task { await self.startRefreshLoop() }
 		} else {
 			isAuthenticated = false
 			cancelRefreshLoop()
@@ -145,7 +145,7 @@ final class AuthService: NSObject, ObservableObject {
 		cancelRefreshLoop()
 	}
 
-	private func startRefreshLoop() {
+	private func startRefreshLoop() async {
 		cancelRefreshLoop()
 		guard let expiration = tokenExpiration else { return }
 		let interval = max(expiration.timeIntervalSinceNow - 60, 10)
@@ -181,7 +181,7 @@ final class AuthService: NSObject, ObservableObject {
 					tokenExpiration = Date().addingTimeInterval(expires)
 					isAuthenticated = true
 					await fetchAndStoreCurrentUserLogin()
-					startRefreshLoop()
+					await startRefreshLoop()
 				}
 			}
 		} catch {
