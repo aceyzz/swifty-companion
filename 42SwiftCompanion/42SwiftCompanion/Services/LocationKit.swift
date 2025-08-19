@@ -11,15 +11,29 @@ final class LocationRepository {
     private let api = APIClient.shared
 
     func fetchCurrentHost(login: String) async throws -> String? {
-        let endpoint = Endpoint(
+        let activeEndpoint = Endpoint(
             path: "/v2/users/\(login)/locations",
             queryItems: [
                 URLQueryItem(name: "filter[active]", value: "true"),
                 URLQueryItem(name: "page[size]", value: "1")
             ]
         )
-        let items: [LocationRaw] = try await api.request(endpoint, as: [LocationRaw].self)
-        return items.first?.host
+        let activeItems: [LocationRaw] = try await api.request(activeEndpoint, as: [LocationRaw].self)
+        if let first = activeItems.first, (first.end_at == nil || first.end_at?.isEmpty == true), let host = first.host, !host.isEmpty {
+            return host
+        }
+        let recentEndpoint = Endpoint(
+            path: "/v2/users/\(login)/locations",
+            queryItems: [
+                URLQueryItem(name: "page[size]", value: "30"),
+                URLQueryItem(name: "page", value: "1")
+            ]
+        )
+        let recent: [LocationRaw] = try await api.request(recentEndpoint, as: [LocationRaw].self)
+        if let open = recent.first(where: { $0.end_at == nil || $0.end_at?.isEmpty == true }), let host = open.host, !host.isEmpty {
+            return host
+        }
+        return nil
     }
 
     func lastDaysStats(login: String, days: Int) async throws -> [DailyLog] {

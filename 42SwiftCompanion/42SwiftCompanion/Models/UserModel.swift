@@ -103,6 +103,9 @@ extension UserProfile {
         guard let host = currentHost else { return [] }
         return ["Poste actuel: \(host)"]
     }
+    var displayableHostOrNA: String {
+        "Poste actuel: \(currentHost?.isEmpty == false ? currentHost! : "Non disponible")"
+    }
 }
 
 struct ImageRaw: Decodable { let link: String }

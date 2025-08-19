@@ -23,6 +23,7 @@ struct MyProfileView: View {
                                 }
                                 ProfileTextList(texts: [profile.displayName], font: .title)
                                 ProfileTextList(texts: [profile.login], font: .subheadline)
+                                ProfileTextList(texts: [profile.displayableHostOrNA], font: .subheadline)
                             }
                         }
                         SectionCard(title: "Contact et campus") {
