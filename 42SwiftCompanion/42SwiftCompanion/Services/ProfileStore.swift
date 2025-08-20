@@ -71,7 +71,7 @@ final class ProfileStore: ObservableObject {
             let coalitionsTask = Task.detached(priority: .background) { try await repoRef.fetchCoalitions(login: login) }
             let projectsTask = Task.detached(priority: .background) { try await repoRef.fetchProjects(login: login) }
             let hostTask = Task.detached(priority: .background) { try await locRef.fetchCurrentHost(login: login) }
-            let statsTask = Task.detached(priority: .background) { try await locRef.lastDaysStats(login: login, days: 7) }
+            let statsTask = Task.detached(priority: .background) { try await locRef.lastDaysStats(login: login, days: 14) }
 
             do {
                 let coalitions = try await coalitionsTask.value

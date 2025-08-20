@@ -37,34 +37,82 @@ final class LocationRepository {
     }
 
     func lastDaysStats(login: String, days: Int) async throws -> [DailyLog] {
-        let cal = Calendar.current
+        let tz = TimeZone.current
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = tz
+        let df = dayFormatter(timeZone: tz)
         let now = Date()
-        let startOfToday = cal.startOfDay(for: now)
-        guard let start = cal.date(byAdding: .day, value: -(days - 1), to: startOfToday) else { return zeros(from: startOfToday, days: days) }
-        let fromStr = DateParser.isoString(start)
-        let toStr = DateParser.isoString(now)
-        do {
-            async let byBegin = ranged(login: login, key: "begin_at", fromStr: fromStr, toStr: toStr)
-            async let byEnd = ranged(login: login, key: "end_at", fromStr: fromStr, toStr: toStr)
-            async let active = activeOnly(login: login)
-            let merged = deduplicated((try await byBegin) + (try await byEnd) + (try await active))
-            let logs = aggregate(locs: merged, from: start, to: now)
-            return Array(logs.suffix(days))
-        } catch {
-            let lookbackDays = max(days * 2, 14)
-            guard let threshold = cal.date(byAdding: .day, value: -lookbackDays, to: startOfToday) else { return zeros(from: startOfToday, days: days) }
-            let recent = try await recentWithoutRange(login: login, stopWhenOlderThan: threshold)
-            let logs = aggregate(locs: recent, from: start, to: now)
-            return Array(logs.suffix(days))
+        let todayStart = cal.startOfDay(for: now)
+        guard let beginDate = cal.date(byAdding: .day, value: -(days - 1), to: todayStart),
+              let endExclusive = cal.date(byAdding: .day, value: 1, to: todayStart) else {
+            return zeros(from: todayStart, days: days)
         }
+
+        if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .isoDateTime),
+           hasAnyValue(stats) {
+            return mapStats(stats, begin: beginDate, days: days, df: df, cal: cal)
+        }
+
+        if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .dateOnly),
+           hasAnyValue(stats) {
+            return mapStats(stats, begin: beginDate, days: days, df: df, cal: cal)
+        }
+
+        let locsBegin = try? await ranged(login: login, key: "begin_at", from: beginDate, to: endExclusive)
+        let locsEnd = try? await ranged(login: login, key: "end_at", from: beginDate, to: endExclusive)
+        let active = try? await activeOnly(login: login)
+        let merged = deduplicated((locsBegin ?? []) + (locsEnd ?? []) + (active ?? []))
+        return aggregate(locs: merged, from: beginDate, to: endExclusive, cal: cal)
     }
 
-    private func ranged(login: String, key: String, fromStr: String, toStr: String) async throws -> [LocationRaw] {
+    private enum RangeFormat { case isoDateTime, dateOnly }
+
+    private func fetchStats(login: String, begin: Date, end: Date, tz: TimeZone, format: RangeFormat) async throws -> [String: String] {
+        let df = dayFormatter(timeZone: tz)
+        let beginParam: String
+        let endParam: String
+        switch format {
+        case .isoDateTime:
+            beginParam = DateParser.isoString(begin)
+            endParam = DateParser.isoString(end)
+        case .dateOnly:
+            beginParam = df.string(from: begin)
+            endParam = df.string(from: end)
+        }
+        let endpoint = Endpoint(
+            path: "/v2/users/\(login)/locations_stats",
+            queryItems: [
+                URLQueryItem(name: "begin_at", value: beginParam),
+                URLQueryItem(name: "end_at", value: endParam),
+                URLQueryItem(name: "time_zone", value: tz.identifier)
+            ]
+        )
+        return try await api.request(endpoint, as: [String: String].self)
+    }
+
+    private func hasAnyValue(_ stats: [String: String]) -> Bool {
+        guard !stats.isEmpty else { return false }
+        for v in stats.values where hoursFromDurationString(v) > 0 { return true }
+        return false
+    }
+
+    private func mapStats(_ raw: [String: String], begin: Date, days: Int, df: DateFormatter, cal: Calendar) -> [DailyLog] {
+        var out: [DailyLog] = []
+        for i in 0..<days {
+            guard let day = cal.date(byAdding: .day, value: i, to: begin) else { continue }
+            let key = df.string(from: day)
+            let h = raw[key].map(hoursFromDurationString) ?? 0
+            out.append(DailyLog(date: day, hours: h))
+        }
+        return out
+    }
+
+    private func ranged(login: String, key: String, from: Date, to: Date) async throws -> [LocationRaw] {
         try await api.pagedRequest { page in
             Endpoint(
                 path: "/v2/users/\(login)/locations",
                 queryItems: [
-                    URLQueryItem(name: "range[\(key)]", value: "\(fromStr),\(toStr)"),
+                    URLQueryItem(name: "range[\(key)]", value: "\(DateParser.isoString(from)),\(DateParser.isoString(to))"),
                     URLQueryItem(name: "page[size]", value: "100"),
                     URLQueryItem(name: "page", value: "\(page)")
                 ]
@@ -85,30 +133,6 @@ final class LocationRepository {
         }
     }
 
-    private func recentWithoutRange(login: String, stopWhenOlderThan threshold: Date) async throws -> [LocationRaw] {
-        var all: [LocationRaw] = []
-        var page = 1
-        var shouldContinue = true
-        while shouldContinue {
-            let endpoint = Endpoint(
-                path: "/v2/users/\(login)/locations",
-                queryItems: [
-                    URLQueryItem(name: "page[size]", value: "100"),
-                    URLQueryItem(name: "page", value: "\(page)")
-                ]
-            )
-            let items: [LocationRaw] = try await api.request(endpoint, as: [LocationRaw].self)
-            if items.isEmpty { break }
-            all.append(contentsOf: items)
-            if items.last.map({ DateParser.iso($0.begin_at) ?? .distantPast }) ?? .distantPast < threshold {
-                shouldContinue = false
-            } else {
-                page += 1
-            }
-        }
-        return deduplicated(all)
-    }
-
     private func deduplicated(_ items: [LocationRaw]) -> [LocationRaw] {
         var seen: Set<Int> = []
         var result: [LocationRaw] = []
@@ -126,41 +150,60 @@ final class LocationRepository {
         return result
     }
 
-    private func aggregate(locs: [LocationRaw], from: Date, to: Date) -> [DailyLog] {
-        let cal = Calendar.current
+    private func aggregate(locs: [LocationRaw], from: Date, to: Date, cal: Calendar) -> [DailyLog] {
         let startDay = cal.startOfDay(for: from)
         let endDay = cal.startOfDay(for: to)
         var bucket: [Date: TimeInterval] = [:]
         var day = startDay
         while day <= endDay {
             bucket[day] = 0
-            day = cal.date(byAdding: .day, value: 1, to: day)!
+            guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
         }
         for l in locs {
             guard let rawStart = DateParser.iso(l.begin_at) else { continue }
             let rawEnd = l.end_at.flatMap(DateParser.iso) ?? to
-            var start = max(rawStart, from)
-            let end = min(rawEnd, to)
-            if end <= start { continue }
-            while start < end {
-                let dayStart = cal.startOfDay(for: start)
-                let nextDay = cal.date(byAdding: .day, value: 1, to: dayStart)!
-                let segmentEnd = min(end, nextDay)
-                let delta = max(0, segmentEnd.timeIntervalSince(start))
+            var s = max(rawStart, from)
+            let e = min(rawEnd, to)
+            if e <= s { continue }
+            while s < e {
+                let dayStart = cal.startOfDay(for: s)
+                guard let nextDay = cal.date(byAdding: .day, value: 1, to: dayStart) else { break }
+                let segmentEnd = min(e, nextDay)
+                let delta = max(0, segmentEnd.timeIntervalSince(s))
                 bucket[dayStart, default: 0] += delta
-                start = segmentEnd
+                s = segmentEnd
             }
         }
         let keys = bucket.keys.sorted()
         return keys.map { DailyLog(date: $0, hours: (bucket[$0] ?? 0) / 3600.0) }
     }
 
+    private func hoursFromDurationString(_ s: String) -> Double {
+        let parts = s.split(separator: ":")
+        guard parts.count >= 2 else { return 0 }
+        let h = Double(parts[0]) ?? 0
+        let m = Double(parts[1]) ?? 0
+        let sec = Double(parts.count >= 3 ? parts[2] : "0") ?? 0
+        return h + m / 60 + sec / 3600
+    }
+
+    private func dayFormatter(timeZone: TimeZone) -> DateFormatter {
+        let df = DateFormatter()
+        df.calendar = Calendar(identifier: .gregorian)
+        df.timeZone = timeZone
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd"
+        return df
+    }
+
     private func zeros(from todayStart: Date, days: Int) -> [DailyLog] {
-        let cal = Calendar.current
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone.current
         let start = cal.date(byAdding: .day, value: -(days - 1), to: todayStart) ?? todayStart
         return (0..<days).compactMap { i in
             let d = cal.date(byAdding: .day, value: i, to: start) ?? start
-            return DailyLog(date: d, hours: 0)
+            return DailyLog(date: cal.startOfDay(for: d), hours: 0)
         }
     }
 }
