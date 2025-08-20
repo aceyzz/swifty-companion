@@ -216,4 +216,16 @@ extension UserProfile {
         self.finishedProjects = finishedProjects
         self.activeProjects = activeProjects
     }
+
+    func with(coalitions: [Coalition]) -> UserProfile {
+        UserProfile(id: id, login: login, displayName: displayName, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusName: campusName, userKind: userKind, isActive: isActive, email: email, phone: phone, userNameWithTitle: userNameWithTitle, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
+    }
+
+    func with(projectsFinished: [Project], projectsActive: [ActiveProject]) -> UserProfile {
+        UserProfile(id: id, login: login, displayName: displayName, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusName: campusName, userKind: userKind, isActive: isActive, email: email, phone: phone, userNameWithTitle: userNameWithTitle, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: projectsFinished, activeProjects: projectsActive)
+    }
+
+    func with(currentHost: String?) -> UserProfile {
+        UserProfile(id: id, login: login, displayName: displayName, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusName: campusName, userKind: userKind, isActive: isActive, email: email, phone: phone, userNameWithTitle: userNameWithTitle, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
+    }
 }

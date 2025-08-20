@@ -146,6 +146,7 @@ final class AuthService: NSObject, ObservableObject {
         isAuthenticated = false
         UserDefaults.standard.removeObject(forKey: userLoginKey)
         cancelRefreshLoop()
+        ProfileStore.shared.stop()
     }
 
     private func startRefreshLoop() async {

@@ -16,6 +16,7 @@ final class ProfileStore: ObservableObject {
     }
 
     func stop() {
+        loader?.clearCache()
         loader?.stop()
         loader = nil
     }
@@ -73,12 +74,15 @@ final class UserProfileLoader: ObservableObject {
 
     func stop() {
         cancel()
-        Task { await cache.clear() }
         profile = nil
         coalitionsState = .idle
         projectsState = .idle
         weeklyLog = []
         lastUpdated = nil
+    }
+
+    func clearCache() {
+        Task { await cache.clear() }
     }
 
     private func cancel() {

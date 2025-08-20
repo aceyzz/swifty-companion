@@ -13,7 +13,7 @@ struct Endpoint {
         var comps = URLComponents()
         comps.scheme = "https"
         comps.host = "api.intra.42.fr"
-        comps.path = path
+        comps.path = path.hasPrefix("/") ? path : "/\(path)"
         if !queryItems.isEmpty { comps.queryItems = queryItems }
         guard let url = comps.url else { return nil }
         var req = URLRequest(url: url)
