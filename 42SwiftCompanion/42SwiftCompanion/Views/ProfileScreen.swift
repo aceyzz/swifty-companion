@@ -227,11 +227,6 @@ struct WeeklyLogCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                StatPill(title: "Total", value: formattedHours(totalHours))
-                StatPill(title: "Moyenne", value: formattedHours(avgHours))
-                Spacer()
-            }
             Chart(sorted) { item in
                 BarMark(
                     x: .value("Date", item.date),
@@ -278,6 +273,11 @@ struct WeeklyLogCard: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+            HStack(spacing: 10) {
+                StatPill(title: "Total", value: formattedHours(totalHours))
+                StatPill(title: "Moyenne", value: formattedHours(avgHours))
+                Spacer()
             }
         }
     }
