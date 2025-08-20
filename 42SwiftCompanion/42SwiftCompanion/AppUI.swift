@@ -3,7 +3,6 @@ import SwiftUI
 @main
 struct _2SwiftCompanionApp: App {
     @StateObject private var authService = AuthService.shared
-    @StateObject private var profileStore = ProfileStore.shared
 
     var body: some Scene {
         WindowGroup {
@@ -11,23 +10,13 @@ struct _2SwiftCompanionApp: App {
                 if authService.isAuthenticated {
                     MainTabView()
                         .environmentObject(authService)
-                        .environmentObject(profileStore)
                 } else {
                     LoginView()
                         .environmentObject(authService)
-                        .environmentObject(profileStore)
                 }
             }
             .onAppear {
                 authService.checkAuthentication()
-                if authService.isAuthenticated { profileStore.start() }
-            }
-            .onChange(of: authService.isAuthenticated) {
-                if authService.isAuthenticated {
-                    profileStore.start()
-                } else {
-                    profileStore.stop()
-                }
             }
         }
     }

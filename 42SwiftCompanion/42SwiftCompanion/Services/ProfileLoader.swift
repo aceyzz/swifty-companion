@@ -5,12 +5,34 @@ import SwiftUI
 final class ProfileStore: ObservableObject {
     static let shared = ProfileStore()
 
+    @Published private(set) var loader: UserProfileLoader?
+
+    func start() {
+        let login = AuthService.shared.getCurrentUserLogin()
+        guard !login.isEmpty else { return }
+        let l = UserProfileLoader(login: login)
+        loader = l
+        l.start()
+    }
+
+    func stop() {
+        loader?.stop()
+        loader = nil
+    }
+}
+
+@MainActor
+final class UserProfileLoader: ObservableObject {
     enum SectionLoadState: Equatable {
         case idle
         case loading
         case loaded
         case failed
     }
+
+    let login: String
+    let autoRefresh: Bool
+    let daysWindow: Int
 
     @Published private(set) var profile: UserProfile? { didSet { lastUpdated = Date() } }
     @Published private(set) var lastUpdated: Date?
@@ -20,8 +42,15 @@ final class ProfileStore: ObservableObject {
 
     private let repo = ProfileRepository.shared
     private let locRepo = LocationRepository.shared
-    private let cache = ProfileCache()
+    private let cache: ProfileCache
     private var loopTask: Task<Void, Never>?
+
+    init(login: String, autoRefresh: Bool = true, daysWindow: Int = 14) {
+        self.login = login
+        self.autoRefresh = autoRefresh
+        self.daysWindow = daysWindow
+        self.cache = ProfileCache(login: login)
+    }
 
     func start() {
         cancel()
@@ -33,9 +62,11 @@ final class ProfileStore: ObservableObject {
                 self.projectsState = (cached.profile.finishedProjects.isEmpty && cached.profile.activeProjects.isEmpty) ? .idle : .loaded
             }
             await self.refreshNow()
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 300 * 1_000_000_000)
-                await self.refreshNow()
+            if self.autoRefresh {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 300 * 1_000_000_000)
+                    await self.refreshNow()
+                }
             }
         }
     }
@@ -56,27 +87,22 @@ final class ProfileStore: ObservableObject {
     }
 
     func refreshNow() async {
-        let login = AuthService.shared.getCurrentUserLogin()
         guard !login.isEmpty else { return }
-
         do {
             let basic = try await repo.basicProfile(login: login)
             profile = basic
             coalitionsState = .loading
             projectsState = .loading
 
-            let repoRef = repo
-            let locRef = locRepo
-
-            let coalitionsTask = Task.detached(priority: .background) { try await repoRef.fetchCoalitions(login: login) }
-            let projectsTask = Task.detached(priority: .background) { try await repoRef.fetchProjects(login: login) }
-            let hostTask = Task.detached(priority: .background) { try await locRef.fetchCurrentHost(login: login) }
-            let statsTask = Task.detached(priority: .background) { try await locRef.lastDaysStats(login: login, days: 14) }
+            async let coalitions = repo.fetchCoalitions(login: login)
+            async let projects = repo.fetchProjects(login: login)
+            async let host = locRepo.fetchCurrentHost(login: login)
+            async let stats = locRepo.lastDaysStats(login: login, days: daysWindow)
 
             do {
-                let coalitions = try await coalitionsTask.value
+                let c = try await coalitions
                 if let current = profile {
-                    profile = repo.applyCoalitions(to: current, coalitions: coalitions)
+                    profile = repo.applyCoalitions(to: current, coalitions: c)
                 }
                 coalitionsState = .loaded
             } catch {
@@ -84,28 +110,20 @@ final class ProfileStore: ObservableObject {
             }
 
             do {
-                let projects = try await projectsTask.value
+                let p = try await projects
                 if let current = profile {
-                    profile = repo.applyProjects(to: current, projects: projects)
+                    profile = repo.applyProjects(to: current, projects: p)
                 }
                 projectsState = .loaded
             } catch {
                 projectsState = .failed
             }
 
-            do {
-                let host = try await hostTask.value
-                if let current = profile {
-                    profile = repo.applyCurrentHost(to: current, host: host)
-                }
-            } catch {}
-
-            do {
-                let stats = try await statsTask.value
-                weeklyLog = stats
-            } catch {
-                weeklyLog = []
+            if let h = try? await host, let current = profile {
+                profile = repo.applyCurrentHost(to: current, host: h)
             }
+
+            weeklyLog = (try? await stats) ?? []
 
             if let p = profile {
                 await cache.save(CachedProfile(profile: p, fetchedAt: Date()))
@@ -122,14 +140,12 @@ final class ProfileStore: ObservableObject {
     }
 
     private func refreshCoalitionsOnly() async {
-        let login = AuthService.shared.getCurrentUserLogin()
         guard !login.isEmpty else { return }
-
         coalitionsState = .loading
         do {
-            let coalitions = try await repo.fetchCoalitions(login: login)
+            let c = try await repo.fetchCoalitions(login: login)
             if let current = profile {
-                profile = repo.applyCoalitions(to: current, coalitions: coalitions)
+                profile = repo.applyCoalitions(to: current, coalitions: c)
                 coalitionsState = .loaded
                 if let p = profile { await cache.save(CachedProfile(profile: p, fetchedAt: Date())) }
             }
@@ -139,14 +155,12 @@ final class ProfileStore: ObservableObject {
     }
 
     private func refreshProjectsOnly() async {
-        let login = AuthService.shared.getCurrentUserLogin()
         guard !login.isEmpty else { return }
-
         projectsState = .loading
         do {
-            let projects = try await repo.fetchProjects(login: login)
+            let pjs = try await repo.fetchProjects(login: login)
             if let current = profile {
-                profile = repo.applyProjects(to: current, projects: projects)
+                profile = repo.applyProjects(to: current, projects: pjs)
                 projectsState = .loaded
                 if let p = profile { await cache.save(CachedProfile(profile: p, fetchedAt: Date())) }
             }

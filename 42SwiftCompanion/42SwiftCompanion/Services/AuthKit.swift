@@ -117,7 +117,10 @@ final class AuthService: NSObject, ObservableObject {
     func checkAuthentication() {
         if let token = accessToken, let expiration = tokenExpiration, expiration > Date(), !token.isEmpty {
             isAuthenticated = true
-            Task { await self.startRefreshLoop() }
+            Task {
+                await self.startRefreshLoop()
+                if self.getCurrentUserLogin().isEmpty { await self.fetchAndStoreCurrentUserLogin() }
+            }
         } else {
             isAuthenticated = false
             cancelRefreshLoop()
@@ -143,7 +146,6 @@ final class AuthService: NSObject, ObservableObject {
         isAuthenticated = false
         UserDefaults.standard.removeObject(forKey: userLoginKey)
         cancelRefreshLoop()
-        ProfileStore.shared.stop()
     }
 
     private func startRefreshLoop() async {
@@ -183,7 +185,6 @@ final class AuthService: NSObject, ObservableObject {
                     isAuthenticated = true
                     await fetchAndStoreCurrentUserLogin()
                     await startRefreshLoop()
-                    ProfileStore.shared.start()
                 }
             }
         } catch {

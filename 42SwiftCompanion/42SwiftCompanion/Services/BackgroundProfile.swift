@@ -10,9 +10,10 @@ actor ProfileCache {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(filename: String = "profile_cache.json") {
+    init(login: String, filenamePrefix: String = "profile_cache") {
+        let safe = login.replacingOccurrences(of: "[^A-Za-z0-9_-]", with: "_", options: .regularExpression)
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        self.url = dir.appendingPathComponent(filename)
+        self.url = dir.appendingPathComponent("\(filenamePrefix)_\(safe).json")
     }
 
     func load() async -> CachedProfile? {
