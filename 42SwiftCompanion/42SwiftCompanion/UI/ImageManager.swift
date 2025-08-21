@@ -3,18 +3,33 @@ import SwiftUI
 actor SecureImageLoader {
     static let shared = SecureImageLoader()
     private let cache = NSCache<NSURL, NSData>()
+    private var tasks: [NSURL: Task<Data, Error>] = [:]
+
+    init() {
+        cache.countLimit = 512
+        cache.totalCostLimit = 32 * 1024 * 1024
+    }
 
     func data(for url: URL) async throws -> Data {
-        if let cached = cache.object(forKey: url as NSURL) {
+        let key = url as NSURL
+        if let cached = cache.object(forKey: key) {
             return cached as Data
         }
-        var req = URLRequest(url: url)
-        if url.host == "api.intra.42.fr", let token = await AuthService.shared.accessToken, !token.isEmpty {
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let existing = tasks[key] {
+            return try await existing.value
         }
-        let (data, _) = try await URLSession.shared.data(for: req)
-        cache.setObject(data as NSData, forKey: url as NSURL)
-        return data
+        let task = Task<Data, Error> {
+            var req = URLRequest(url: url)
+            if url.host == "api.intra.42.fr", let token = await AuthService.shared.accessToken, !token.isEmpty {
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
+            let (data, _) = try await URLSession.shared.data(for: req)
+            cache.setObject(data as NSData, forKey: key, cost: data.count)
+            return data
+        }
+        tasks[key] = task
+        defer { tasks[key] = nil }
+        return try await task.value
     }
 }
 
@@ -23,7 +38,6 @@ struct RemoteImage: View {
     let cornerRadius: CGFloat
 
     @State private var image: UIImage?
-    @State private var isLoading = false
 
     init(url: URL?, cornerRadius: CGFloat = 8) {
         self.url = url
@@ -44,8 +58,6 @@ struct RemoteImage: View {
 
     private func load() async {
         guard let url else { image = nil; return }
-        isLoading = true
-        defer { isLoading = false }
         do {
             let data = try await SecureImageLoader.shared.data(for: url)
             image = UIImage(data: data, scale: UIScreen.main.scale)

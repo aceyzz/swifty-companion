@@ -130,6 +130,7 @@ final class AuthService: NSObject, ObservableObject {
                 await self.exchangeCodeForTokens(code: code)
             }
         }
+        session?.prefersEphemeralWebBrowserSession = true
         session?.presentationContextProvider = self
         session?.start()
     }

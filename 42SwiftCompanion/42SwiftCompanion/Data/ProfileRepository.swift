@@ -26,19 +26,13 @@ final class ProfileRepository {
     }
 
     func assemble(user: UserInfoRaw, coalitions: ([CoalitionRaw], [CoalitionUserRaw]), projects: [ProjectRaw]) -> UserProfile {
-        let mergedCoalitions: [UserProfile.Coalition] = coalitions.0.map { c in
-            let s = coalitions.1.first { $0.coalition_id == c.id }
-            return UserProfile.Coalition(id: c.id, name: c.name, slug: c.slug, color: c.color, imageURL: URL(string: c.image_url), score: s?.score ?? c.score, rank: s?.rank)
-        }
+        let mergedCoalitions = mergeCoalitions(coalitions.0, coalitions.1)
         let split = mapProjects(projects)
         return UserProfile(raw: user, coalitions: mergedCoalitions, finishedProjects: split.finished, activeProjects: split.active, currentHost: nil)
     }
 
     func applyCoalitions(to profile: UserProfile, coalitions: ([CoalitionRaw], [CoalitionUserRaw])) -> UserProfile {
-        let merged: [UserProfile.Coalition] = coalitions.0.map { c in
-            let s = coalitions.1.first { $0.coalition_id == c.id }
-            return UserProfile.Coalition(id: c.id, name: c.name, slug: c.slug, color: c.color, imageURL: URL(string: c.image_url), score: s?.score ?? c.score, rank: s?.rank)
-        }
+        let merged = mergeCoalitions(coalitions.0, coalitions.1)
         return profile.with(coalitions: merged)
     }
 
@@ -51,22 +45,98 @@ final class ProfileRepository {
         profile.with(currentHost: host)
     }
 
-    private func mapProjects(_ projects: [ProjectRaw]) -> (finished: [UserProfile.Project], active: [UserProfile.ActiveProject]) {
-        let finished: [UserProfile.Project] = projects.filter {
-            $0.final_mark != nil && ($0.status == "finished" || $0.status == "waiting_for_correction") && ($0.closed_at != nil || $0.marked_at != nil)
-        }.compactMap { p in
-            guard let name = p.project.name, let slug = p.project.slug else { return nil }
-            return UserProfile.Project(id: slug, name: name, slug: slug, finalMark: p.final_mark, validated: p.validated, closedAt: DateParser.iso(p.closed_at ?? p.marked_at), retry: p.occurrence, cursusId: p.cursus_ids.first, createdAt: DateParser.iso(p.created_at))
-        }.sorted { ($0.closedAt ?? .distantPast) > ($1.closedAt ?? .distantPast) }
+    private func mergeCoalitions(_ coalitions: [CoalitionRaw], _ users: [CoalitionUserRaw]) -> [UserProfile.Coalition] {
+        coalitions.map { c in
+            let s = users.first { $0.coalition_id == c.id }
+            return UserProfile.Coalition(id: c.id, name: c.name, slug: c.slug, color: c.color, imageURL: URL(string: c.image_url), score: s?.score ?? c.score, rank: s?.rank)
+        }
+    }
 
-        let active: [UserProfile.ActiveProject] = projects.filter {
-            $0.final_mark == nil && $0.current_team_id != nil && ($0.teams?.isEmpty == false)
-        }.compactMap { p in
+    private func mapProjects(_ projects: [ProjectRaw]) -> (finished: [UserProfile.Project], active: [UserProfile.ActiveProject]) {
+        struct Norm {
+            let slug: String
+            let name: String
+            let cursusId: Int?
+            let retry: Int?
+            let repoURL: URL?
+            let status: String?
+            let teamStatus: String?
+            let registeredAt: Date?
+            let endAt: Date?
+            let finalMark: Int?
+            let validated: Bool?
+        }
+
+        let normalized: [Norm] = projects.compactMap { p in
             guard let name = p.project.name, let slug = p.project.slug else { return nil }
-            let team = p.teams?.first
-            let repo = team?.repo_url.flatMap { URL(string: $0) }
-            return UserProfile.ActiveProject(id: slug, name: name, slug: slug, status: p.status, teamStatus: team?.status, repoURL: repo, registeredAt: DateParser.iso(p.created_at), cursusId: p.cursus_ids.first, retry: p.occurrence, createdAt: DateParser.iso(p.created_at))
-        }.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+            let teamById = { (id: Int?) -> TeamRaw? in
+                guard let id else { return nil }
+                return p.teams?.first(where: { $0.id == id })
+            }(p.current_team_id)
+
+            let finishedDates: [Date] = [
+                DateParser.iso(p.closed_at),
+                DateParser.iso(p.marked_at)
+            ].compactMap { $0 } + (p.teams?.compactMap { DateParser.iso($0.closed_at) } ?? [])
+
+            let endAt = finishedDates.max()
+            let repo = (teamById?.repo_url ?? p.teams?.first?.repo_url).flatMap(URL.init(string:))
+            return Norm(
+                slug: slug,
+                name: name,
+                cursusId: p.cursus_ids.first,
+                retry: p.occurrence,
+                repoURL: repo,
+                status: p.status,
+                teamStatus: teamById?.status ?? p.teams?.first?.status,
+                registeredAt: DateParser.iso(p.created_at),
+                endAt: endAt,
+                finalMark: p.final_mark,
+                validated: p.validated
+            )
+        }
+
+        let finished: [UserProfile.Project] = normalized
+            .filter { n in
+                if let mark = n.finalMark { return true }
+                if let st = n.status, ["finished", "waiting_for_correction"].contains(st.lowercased()), n.endAt != nil { return true }
+                return false
+            }
+            .map { n in
+                UserProfile.Project(
+                    id: n.slug,
+                    name: n.name,
+                    slug: n.slug,
+                    finalMark: n.finalMark,
+                    validated: n.validated,
+                    closedAt: n.endAt,
+                    retry: n.retry,
+                    cursusId: n.cursusId,
+                    createdAt: n.registeredAt
+                )
+            }
+            .sorted { ($0.closedAt ?? .distantPast) > ($1.closedAt ?? .distantPast) }
+
+        let active: [UserProfile.ActiveProject] = normalized
+            .filter { n in
+                let isFinished = (n.finalMark != nil) || ((n.status?.lowercased()).map { ["finished", "waiting_for_correction"].contains($0) } == true && n.endAt != nil)
+                return !isFinished
+            }
+            .map { n in
+                UserProfile.ActiveProject(
+                    id: n.slug,
+                    name: n.name,
+                    slug: n.slug,
+                    status: n.status,
+                    teamStatus: n.teamStatus,
+                    repoURL: n.repoURL,
+                    registeredAt: n.registeredAt,
+                    cursusId: n.cursusId,
+                    retry: n.retry,
+                    createdAt: n.endAt ?? n.registeredAt
+                )
+            }
+            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
 
         return (finished, active)
     }

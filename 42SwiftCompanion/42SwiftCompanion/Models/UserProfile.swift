@@ -137,12 +137,12 @@ extension UserProfile {
     }
 
     var displayableActiveProjects: [String] {
-		activeProjects.map {
-			var s = "\($0.name) | Statut: \($0.status ?? "")"
-			if let ts = $0.teamStatus { s += " | Équipe: \(ts)" }
-			return s
-		}
-	}
+        activeProjects.map {
+            var s = "\($0.name) | Statut: \($0.status ?? "")"
+            if let ts = $0.teamStatus { s += " | Équipe: \(ts)" }
+            return s
+        }
+    }
 
     var displayableHost: [String] {
         guard let host = currentHost else { return [] }
@@ -205,7 +205,14 @@ struct CoalitionRaw: Decodable { let id: Int; let name: String; let slug: String
 
 struct CoalitionUserRaw: Decodable { let coalition_id: Int; let score: Int?; let rank: Int? }
 
-struct TeamRaw: Decodable { let status: String?; let repo_url: String?; let name: String? }
+struct TeamRaw: Decodable {
+    let id: Int?
+    let status: String?
+    let repo_url: String?
+    let name: String?
+    let closed_at: String?
+    let validated: Bool?
+}
 
 struct ProjectInfoRaw: Decodable { let name: String?; let slug: String? }
 
