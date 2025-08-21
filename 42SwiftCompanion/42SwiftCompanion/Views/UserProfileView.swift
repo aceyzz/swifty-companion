@@ -103,6 +103,18 @@ struct UserProfileView: View {
                     }
                 }
 
+				LoadableSection(title: "Projets en cours", state: loader.projectsState) {
+                    LoadingListPlaceholder(lines: 2)
+                } failed: {
+                    RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
+                } content: {
+                    if let p = loader.profile, !p.displayableActiveProjects.isEmpty {
+                        ProfileTextList(texts: p.displayableActiveProjects)
+                    } else {
+                        EmptyRow(text: "Aucun projet en cours")
+                    }
+                }
+
                 LoadableSection(title: "Projets terminés", state: loader.projectsState) {
                     LoadingListPlaceholder(lines: 3)
                 } failed: {
@@ -112,18 +124,6 @@ struct UserProfileView: View {
                         ProfileTextList(texts: p.displayableFinishedProjects)
                     } else {
                         EmptyRow(text: "Aucun projet terminé")
-                    }
-                }
-
-                LoadableSection(title: "Projets en cours", state: loader.projectsState) {
-                    LoadingListPlaceholder(lines: 2)
-                } failed: {
-                    RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
-                } content: {
-                    if let p = loader.profile, !p.displayableActiveProjects.isEmpty {
-                        ProfileTextList(texts: p.displayableActiveProjects)
-                    } else {
-                        EmptyRow(text: "Aucun projet en cours")
                     }
                 }
             }
