@@ -39,6 +39,7 @@ final class AuthService: NSObject, ObservableObject {
 
     @Published private(set) var isAuthenticated = false
     @Published private(set) var currentLogin: String = ""
+    @Published private(set) var isPostWebAuthLoading = false
 
     private let service = "intra.42.fr"
     private let accessAccount = "accessToken"
@@ -108,9 +109,12 @@ final class AuthService: NSObject, ObservableObject {
         guard let scheme = URL(string: APIConfig.redirectUri)?.scheme else { return }
         guard let authURL = URL(string: "\(authorizeUrl)?client_id=\(APIConfig.clientId)&redirect_uri=\(APIConfig.redirectUri)&response_type=code") else { return }
         session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: scheme) { [weak self] callbackURL, error in
-            guard let self, let url = callbackURL, error == nil else { return }
-            guard let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value else { return }
-            Task { await self.exchangeCodeForTokens(code: code) }
+            guard let self else { return }
+            if error != nil { self.isPostWebAuthLoading = false; return }
+            guard let url = callbackURL else { self.isPostWebAuthLoading = false; return }
+            guard let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value else { self.isPostWebAuthLoading = false; return }
+            self.isPostWebAuthLoading = true
+            Task { await self.exchangeCodeForTokens(code: code); self.isPostWebAuthLoading = false }
         }
         session?.presentationContextProvider = self
         session?.start()
@@ -122,6 +126,7 @@ final class AuthService: NSObject, ObservableObject {
         tokenExpiration = nil
         currentLogin = ""
         isAuthenticated = false
+        isPostWebAuthLoading = false
         UserDefaults.standard.removeObject(forKey: userLoginKey)
         cancelRefreshLoop()
         ProfileStore.shared.stop()

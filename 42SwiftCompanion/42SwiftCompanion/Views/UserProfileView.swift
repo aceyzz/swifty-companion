@@ -126,18 +126,6 @@ struct UserProfileView: View {
                         EmptyRow(text: "Aucun projet en cours")
                     }
                 }
-
-                LoadableSection(title: "Poste", state: loader.hostState) {
-                    LoadingListPlaceholder(lines: 1, compact: true)
-                } failed: {
-                    RetryRow(title: "Impossible de charger le poste") { loader.retryHost() }
-                } content: {
-                    if let p = loader.profile, !p.displayableHost.isEmpty {
-                        ProfileTextList(texts: p.displayableHost)
-                    } else {
-                        EmptyRow(text: "Non disponible")
-                    }
-                }
             }
             .padding()
         }

@@ -25,6 +25,13 @@ struct _2SwiftCompanionApp: App {
             .onChange(of: authService.currentLogin) { _, login in
                 if authService.isAuthenticated, !login.isEmpty { profileStore.start(for: login) }
             }
+            .overlay {
+                if authService.isPostWebAuthLoading {
+                    BlockingProgressOverlay(title: "Connexion…")
+                }
+            }
+            .disabled(authService.isPostWebAuthLoading)
+            .animation(.snappy, value: authService.isPostWebAuthLoading)
         }
     }
 }
