@@ -1,6 +1,8 @@
 import SwiftUI
 import Charts
 
+private let achievementsSectionMaxHeight: CGFloat = 320
+private let finishedProjectsSectionMaxHeight: CGFloat = 360
 private let projectsSectionMaxHeight: CGFloat = 420
 
 struct UserProfileView: View {
@@ -255,12 +257,12 @@ struct WeeklyLogCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Chart(sorted) { item in
-                BarMark(x: .value("Date", item.date), y: .value("Heures", item.hours))
+                BarMark(x: .value("Date", item.date, unit: .day), y: .value("Heures", item.hours))
                     .cornerRadius(8)
                     .foregroundStyle(Color.accentColor)
                     .opacity(item.hours > 0 ? 1 : 0.35)
                 if item.hours > 0 {
-                    PointMark(x: .value("Date", item.date), y: .value("Heures", item.hours))
+                    PointMark(x: .value("Date", item.date, unit: .day), y: .value("Heures", item.hours))
                 }
             }
             .chartXScale(domain: xDomain)
@@ -486,7 +488,7 @@ private struct ActiveProjectsListView: View {
     private func header(for p: UserProfile.ActiveProject) -> ProjectHeaderInfo {
         let badges = [p.status, p.teamStatus].compactMap { $0 } + (p.retry.map { $0 > 0 ? ["Tentative \($0)"] : [] } ?? [])
         let dateText = p.createdAt.map { UserProfile.Formatters.shortDate.string(from: $0) }
-        return ProjectHeaderInfo(icon: "hammer.fill", title: p.name, headerBadges: badges, dateText: dateText, slug: p.slug)
+        return ProjectHeaderInfo(icon: "hammer.fill", title: p.name, headerBadges: badges, dateText: dateText, slug: p.slug, noteTint: nil)
     }
 }
 
@@ -522,18 +524,20 @@ private struct FinishedProjectsListView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 10) {
                             ForEach(itemsSorted) { p in
+                                let icon = finishedIcon(for: p)
                                 InfoPillRow(
-                                    leading: .system("checkmark.seal.fill"),
+                                    leading: .system(icon.name),
                                     title: p.name,
                                     subtitle: nil,
                                     badges: badgeTexts(for: p),
-                                    onTap: { presented = p }
+                                    onTap: { presented = p },
+                                    iconTint: icon.tint
                                 )
                             }
                         }
                         .padding(.trailing, 2)
                     }
-                    .frame(maxHeight: projectsSectionMaxHeight)
+                    .frame(maxHeight: finishedProjectsSectionMaxHeight)
                     .scrollIndicators(.visible)
                 }
             }
@@ -555,12 +559,28 @@ private struct FinishedProjectsListView: View {
         return arr
     }
 
+    private func finishedIcon(for p: UserProfile.Project) -> (name: String, tint: Color) {
+        if p.finalMark == 125 { return ("rosette", .yellow) }
+        if p.finalMark >= 100 { return ("medal.fill", .orange) }
+        if p.validated == true { return ("checkmark.seal.fill", .green) }
+        if p.validated == false { return ("xmark.seal.fill", .red) }
+        return ("checkmark.seal.fill", .accentColor)
+    }
+
+    private func noteTint(for p: UserProfile.Project) -> Color? {
+        if p.finalMark == 125 { return .yellow }
+        if p.finalMark >= 100 { return .orange }
+        if p.validated == true { return .green }
+        if p.validated == false { return .red }
+        return nil
+    }
+
     private func header(for p: UserProfile.Project) -> ProjectHeaderInfo {
         var badges: [String] = ["Note \(p.finalMark ?? 0)"]
         if let v = p.validated { badges.append(v ? "Validé" : "Non validé") }
         if let r = p.retry, r > 0 { badges.append("Tentative \(r)") }
         let dateText = p.closedAt.map { UserProfile.Formatters.shortDate.string(from: $0) }
-        return ProjectHeaderInfo(icon: "checkmark.seal.fill", title: p.name, headerBadges: badges, dateText: dateText, slug: p.slug)
+        return ProjectHeaderInfo(icon: finishedIcon(for: p).name, title: p.name, headerBadges: badges, dateText: dateText, slug: p.slug, noteTint: noteTint(for: p))
     }
 }
 
@@ -570,11 +590,13 @@ private struct ProjectHeaderInfo: Equatable {
     let headerBadges: [String]
     let dateText: String?
     let slug: String
+    let noteTint: Color?
 }
 
 private struct ProjectDetailSheet: View {
     let header: ProjectHeaderInfo
     @State private var details: ProjectDetails?
+    @State private var isLoading = true
 
     var body: some View {
         NavigationStack {
@@ -586,7 +608,13 @@ private struct ProjectDetailSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(header.title).font(.title3).bold()
                         HStack(spacing: 8) {
-                            ForEach(header.headerBadges, id: \.self) { CapsuleBadge(text: $0) }
+                            ForEach(Array(header.headerBadges.enumerated()), id: \.offset) { _, text in
+                                if text.lowercased().hasPrefix("note"), let tint = header.noteTint {
+                                    CapsuleBadge(text: text, tint: tint)
+                                } else {
+                                    CapsuleBadge(text: text)
+                                }
+                            }
                         }
                     }
                     Spacer()
@@ -599,14 +627,25 @@ private struct ProjectDetailSheet: View {
                             Text(dateText).font(.subheadline)
                         }
                     }
-                    if let desc = details?.description, !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(desc).font(.callout)
-                    }
-                    if let u = details?.url {
-                        HStack(spacing: 8) {
-                            Image(systemName: "link")
-                            Link("Ouvrir le projet", destination: u)
-                                .font(.subheadline)
+                    if isLoading {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ShimmerBar(height: 12)
+                            ShimmerBar(height: 12)
+                            HStack(spacing: 8) {
+                                ProgressView().controlSize(.small)
+                                Text("Chargement…").font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                    } else {
+                        if let desc = details?.description, !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(desc).font(.callout)
+                        }
+                        if let u = details?.url {
+                            HStack(spacing: 8) {
+                                Image(systemName: "link")
+                                Link("Ouvrir le projet", destination: u)
+                                    .font(.subheadline)
+                            }
                         }
                     }
                 }
@@ -616,9 +655,9 @@ private struct ProjectDetailSheet: View {
             .navigationTitle("Détails")
             .navigationBarTitleDisplayMode(.inline)
             .task {
-                if details == nil {
-                    details = await ProjectDetailsRepository.shared.details(for: header.slug)
-                }
+                isLoading = true
+                details = await ProjectDetailsRepository.shared.details(for: header.slug)
+                isLoading = false
             }
         }
     }
@@ -667,7 +706,7 @@ private struct AchievementsListView: View {
                 }
             }
         }
-        .frame(maxHeight: projectsSectionMaxHeight)
+        .frame(maxHeight: achievementsSectionMaxHeight)
         .scrollIndicators(.visible)
         .sheet(item: $presented) { g in
             AchievementGroupSheet(group: g)
