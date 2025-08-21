@@ -550,38 +550,55 @@ private struct FinishedProjectsListView: View {
         }
     }
 
-    private func badgeTexts(for p: UserProfile.Project) -> [String] {
-        var arr: [String] = []
-        arr.append("Note \(p.finalMark ?? 0)")
-        if let v = p.validated { arr.append(v ? "Validé" : "Non validé") }
-        if let d = p.closedAt { arr.append(UserProfile.Formatters.shortDate.string(from: d)) }
-        if let r = p.retry, r > 0 { arr.append("Tentative \(r)") }
-        return arr
-    }
+	private func badgeTexts(for p: UserProfile.Project) -> [String] {
+		var arr: [String] = []
+		arr.append("Note \(p.finalMark ?? 0)")
+		if let v = p.validated { arr.append(v ? "Validé" : "Non validé") }
+		if let d = p.closedAt { arr.append(UserProfile.Formatters.shortDate.string(from: d)) }
+		if let r = p.retry, r > 0 { arr.append("Tentative \(r)") }
+		return arr
+	}
 
-    private func finishedIcon(for p: UserProfile.Project) -> (name: String, tint: Color) {
-        if p.finalMark == 125 { return ("rosette", .yellow) }
-        if p.finalMark >= 100 { return ("medal.fill", .orange) }
-        if p.validated == true { return ("checkmark.seal.fill", .green) }
-        if p.validated == false { return ("xmark.seal.fill", .red) }
-        return ("checkmark.seal.fill", .accentColor)
-    }
+	private func finishedIcon(for p: UserProfile.Project) -> (name: String, tint: Color) {
+		guard let mark = p.finalMark else {
+			if p.validated == true { return ("checkmark.seal.fill", .green) }
+			if p.validated == false { return ("xmark.seal.fill", .red) }
+			return ("checkmark.seal.fill", .accentColor)
+		}
+		if mark == 125 { return ("rosette", Color(red: 1.0, green: 0.84, blue: 0.0)) }
+		if mark >= 100 && mark < 125 { return ("medal.fill", .green) }
+		if mark >= 70 && mark < 100 { return ("medal.fill", Color(red: 0.7, green: 0.85, blue: 0.2)) }
+		if mark < 70 { return ("xmark.seal.fill", .red) }
+		return ("checkmark.seal.fill", .accentColor)
+	}
 
-    private func noteTint(for p: UserProfile.Project) -> Color? {
-        if p.finalMark == 125 { return .yellow }
-        if p.finalMark >= 100 { return .orange }
-        if p.validated == true { return .green }
-        if p.validated == false { return .red }
-        return nil
-    }
+	private func noteTint(for p: UserProfile.Project) -> Color? {
+		guard let mark = p.finalMark else {
+			if p.validated == true { return .green }
+			if p.validated == false { return .red }
+			return nil
+		}
+		if mark == 125 { return Color(red: 1.0, green: 0.84, blue: 0.0) }
+		if mark >= 100 && mark < 125 { return .green }
+		if mark >= 70 && mark < 100 { return Color(red: 0.7, green: 0.85, blue: 0.2) }
+		if mark < 70 { return .red }
+		return nil
+	}
 
-    private func header(for p: UserProfile.Project) -> ProjectHeaderInfo {
-        var badges: [String] = ["Note \(p.finalMark ?? 0)"]
-        if let v = p.validated { badges.append(v ? "Validé" : "Non validé") }
-        if let r = p.retry, r > 0 { badges.append("Tentative \(r)") }
-        let dateText = p.closedAt.map { UserProfile.Formatters.shortDate.string(from: $0) }
-        return ProjectHeaderInfo(icon: finishedIcon(for: p).name, title: p.name, headerBadges: badges, dateText: dateText, slug: p.slug, noteTint: noteTint(for: p))
-    }
+	private func header(for p: UserProfile.Project) -> ProjectHeaderInfo {
+		var badges: [String] = ["Note \(p.finalMark ?? 0)"]
+		if let v = p.validated { badges.append(v ? "Validé" : "Non validé") }
+		if let r = p.retry, r > 0 { badges.append("Tentative \(r)") }
+		let dateText = p.closedAt.map { UserProfile.Formatters.shortDate.string(from: $0) }
+		return ProjectHeaderInfo(
+			icon: finishedIcon(for: p).name,
+			title: p.name,
+			headerBadges: badges,
+			dateText: dateText,
+			slug: p.slug,
+			noteTint: noteTint(for: p)
+		)
+	}
 }
 
 private struct ProjectHeaderInfo: Equatable {
