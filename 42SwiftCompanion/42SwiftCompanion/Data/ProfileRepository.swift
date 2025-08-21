@@ -28,7 +28,7 @@ final class ProfileRepository {
     func assemble(user: UserInfoRaw, coalitions: ([CoalitionRaw], [CoalitionUserRaw]), projects: [ProjectRaw]) -> UserProfile {
         let mergedCoalitions: [UserProfile.Coalition] = coalitions.0.map { c in
             let s = coalitions.1.first { $0.coalition_id == c.id }
-            return UserProfile.Coalition(id: c.id, name: c.name, slug: c.slug, color: c.color, imageURL: URL(string: c.image_url), score: s?.score, rank: s?.rank)
+            return UserProfile.Coalition(id: c.id, name: c.name, slug: c.slug, color: c.color, imageURL: URL(string: c.image_url), score: s?.score ?? c.score, rank: s?.rank)
         }
         let split = mapProjects(projects)
         return UserProfile(raw: user, coalitions: mergedCoalitions, finishedProjects: split.finished, activeProjects: split.active, currentHost: nil)
@@ -37,7 +37,7 @@ final class ProfileRepository {
     func applyCoalitions(to profile: UserProfile, coalitions: ([CoalitionRaw], [CoalitionUserRaw])) -> UserProfile {
         let merged: [UserProfile.Coalition] = coalitions.0.map { c in
             let s = coalitions.1.first { $0.coalition_id == c.id }
-            return UserProfile.Coalition(id: c.id, name: c.name, slug: c.slug, color: c.color, imageURL: URL(string: c.image_url), score: s?.score, rank: s?.rank)
+            return UserProfile.Coalition(id: c.id, name: c.name, slug: c.slug, color: c.color, imageURL: URL(string: c.image_url), score: s?.score ?? c.score, rank: s?.rank)
         }
         return profile.with(coalitions: merged)
     }
@@ -63,7 +63,9 @@ final class ProfileRepository {
             $0.final_mark == nil && $0.current_team_id != nil && ($0.teams?.isEmpty == false)
         }.compactMap { p in
             guard let name = p.project.name, let slug = p.project.slug else { return nil }
-            return UserProfile.ActiveProject(id: slug, name: name, slug: slug, status: p.status, teamStatus: p.teams?.first?.status, registeredAt: DateParser.iso(p.created_at), cursusId: p.cursus_ids.first, retry: p.occurrence, createdAt: DateParser.iso(p.created_at))
+            let team = p.teams?.first
+            let repo = team?.repo_url.flatMap { URL(string: $0) }
+            return UserProfile.ActiveProject(id: slug, name: name, slug: slug, status: p.status, teamStatus: team?.status, repoURL: repo, registeredAt: DateParser.iso(p.created_at), cursusId: p.cursus_ids.first, retry: p.occurrence, createdAt: DateParser.iso(p.created_at))
         }.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
 
         return (finished, active)

@@ -25,7 +25,7 @@ struct Endpoint {
 actor APIClient {
     static let shared = APIClient()
     private let decoder = JSONDecoder()
-    private let pageSize = 15
+    private let pageSize = 30
 
     func request<T: Decodable>(_ endpoint: Endpoint, as type: T.Type) async throws -> T {
         try await requestWithRetry(endpoint, as: type, retriedAfter401: false)

@@ -28,19 +28,24 @@ struct UserProfileView: View {
                                 Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16)).redacted(reason: .placeholder)
                             }
                             ProfileTextList(texts: [p.displayName], font: .title)
-                            ProfileTextList(texts: [p.login], font: .subheadline)
+                            ProfileTextList(texts: [p.userNameWithTitle == p.login ? p.login : (p.userNameWithTitle ?? p.login)], font: .subheadline)
                             ProfileTextList(texts: [p.displayableHostOrNA], font: .subheadline)
                         }
                     }
                 }
 
                 LoadableSection(title: "Contact et campus", state: loader.basicState) {
-                    LoadingListPlaceholder(lines: 2, compact: true)
+                    LoadingListPlaceholder(lines: 3, compact: true)
                 } failed: {
                     RetryRow(title: "Impossible de charger le contact") { loader.retryBasic() }
                 } content: {
                     if let p = loader.profile, !p.displayableContact.isEmpty {
-                        ProfileTextList(texts: p.displayableContact, font: .subheadline)
+                        VStack(alignment: .leading, spacing: 8) {
+                            ProfileTextList(texts: p.displayableContact, font: .subheadline)
+                            if let lang = loader.profile?.campusLanguage, !lang.isEmpty {
+                                ProfileTextList(texts: ["Langue du campus: \(lang)"], font: .footnote)
+                            }
+                        }
                     } else {
                         EmptyRow(text: "Aucune information")
                     }
@@ -103,7 +108,7 @@ struct UserProfileView: View {
                     }
                 }
 
-				LoadableSection(title: "Projets en cours", state: loader.projectsState) {
+                LoadableSection(title: "Projets en cours", state: loader.projectsState) {
                     LoadingListPlaceholder(lines: 2)
                 } failed: {
                     RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
@@ -125,6 +130,13 @@ struct UserProfileView: View {
                     } else {
                         EmptyRow(text: "Aucun projet terminé")
                     }
+                }
+
+                if let updated = loader.lastUpdated {
+                    Text("Actualisé: \(updated.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
             .padding()
