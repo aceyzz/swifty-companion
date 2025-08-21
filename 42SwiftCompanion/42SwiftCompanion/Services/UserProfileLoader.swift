@@ -56,6 +56,7 @@ final class UserProfileLoader: ObservableObject {
     private let refreshInterval: TimeInterval = 300
     private var lastFetchAt: Date?
     private var refreshToken: Int = 0
+    private var isPriming = true
 
     init(login: String, autoRefresh: Bool = true, daysWindow: Int = 14) {
         self.login = login
@@ -66,6 +67,7 @@ final class UserProfileLoader: ObservableObject {
 
     func start() {
         cancel()
+        isPriming = true
         loopTask = Task { [weak self] in
             guard let self else { return }
             if let cached = await cache.load() {
@@ -92,6 +94,7 @@ final class UserProfileLoader: ObservableObject {
         weeklyLog = []
         lastUpdated = nil
         lastFetchAt = nil
+        isPriming = true
     }
 
     func clearCache() {
@@ -108,11 +111,12 @@ final class UserProfileLoader: ObservableObject {
         profile = cached.profile
         weeklyLog = cached.logs ?? []
         lastFetchAt = cached.fetchedAt
-        basicState = .loaded
-        coalitionsState = cached.profile.coalitions.isEmpty ? .loading : .loaded
-        projectsState = (cached.profile.finishedProjects.isEmpty && cached.profile.activeProjects.isEmpty) ? .loading : .loaded
-        hostState = cached.profile.currentHost == nil ? .loading : .loaded
-        logState = cached.logs == nil ? .loading : .loaded
+
+        basicState = isPriming ? .loading : .loaded
+        coalitionsState = cached.profile.coalitions.isEmpty ? .loading : (isPriming ? .loading : .loaded)
+        projectsState = (cached.profile.finishedProjects.isEmpty && cached.profile.activeProjects.isEmpty) ? .loading : (isPriming ? .loading : .loaded)
+        hostState = cached.profile.currentHost == nil ? .loading : (isPriming ? .loading : .loaded)
+        logState = cached.logs == nil ? .loading : (isPriming ? .loading : .loaded)
     }
 
     private func beginRefreshing() {
@@ -144,6 +148,8 @@ final class UserProfileLoader: ObservableObject {
         let token = refreshToken &+ 1
         refreshToken = token
         beginRefreshing()
+        defer { isPriming = false }
+
         do {
             let basic = try await repo.basicProfile(login: login)
             if token != refreshToken { return }

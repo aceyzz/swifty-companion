@@ -12,58 +12,14 @@ struct UserProfileView: View {
         ScrollView {
             LazyVStack(spacing: 24) {
                 LoadableSection(title: "Identité", state: loader.basicState) {
-                    HStack(alignment: .top, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                LoadingListPlaceholder(lines: 2, compact: true)
-                            }
-                            VStack(alignment: .leading, spacing: 8) {
-                                LoadingListPlaceholder(lines: 3, compact: true)
-                            }
-                        }
-                        Spacer()
-                        VStack(spacing: 6) {
-                            Color.gray
-                                .frame(width: 120, height: 120)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .redacted(reason: .placeholder)
-                        }
-                    }
+                    IdentitySkeleton()
                 } failed: {
                     RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
                 } content: {
                     if let p = loader.profile {
-                        HStack(alignment: .top, spacing: 16) {
-                            VStack(alignment: .leading, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ProfileTextList(texts: [p.displayName], font: .headline)
-                                    ProfileTextList(texts: [p.userNameWithTitle == p.login ? p.login : (p.userNameWithTitle ?? p.login)], font: .caption)
-                                    ProfileTextList(texts: [p.displayableHostOrNA], font: .caption)
-                                }
-                                if !p.displayableContact.isEmpty {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        ProfileTextList(texts: p.displayableContact, font: .caption)
-                                        if let lang = loader.profile?.campusLanguage, !lang.isEmpty {
-                                            ProfileTextList(texts: ["Langue parlée: \(lang)"], font: .caption2)
-                                        }
-                                    }
-                                } else {
-                                    EmptyRow(text: "Aucune information")
-                                }
-                            }
-                            Spacer()
-                            VStack(spacing: 6) {
-                                if let url = p.imageURL {
-                                    RemoteImage(url: url, cornerRadius: 16)
-                                        .frame(width: 120, height: 120)
-                                } else {
-                                    Color.gray
-                                        .frame(width: 120, height: 120)
-                                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                                        .redacted(reason: .placeholder)
-                                }
-                            }
-                        }
+                        IdentityCard(profile: p)
+                    } else {
+                        IdentitySkeleton()
                     }
                 }
 
@@ -73,39 +29,30 @@ struct UserProfileView: View {
                     RetryRow(title: "Impossible de charger le statut") { loader.retryBasic() }
                 } content: {
                     if let p = loader.profile, !(p.displayableStatus.isEmpty && p.displayableCursus.isEmpty) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ProfileTextList(texts: p.displayableStatus, font: .subheadline)
-                            ProfileTextList(texts: p.displayableCursus, font: .subheadline)
-                        }
+                        StatusCursusCard(profile: p)
                     } else {
-                        EmptyRow(text: "Aucune information")
+                        ContentUnavailableView("Aucune information", systemImage: "info.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
-				LoadableSection(title: "Points et coalitions", state: loader.basicState) {
-					LoadingListPlaceholder(lines: 3, compact: true)
-				} failed: {
-					RetryRow(title: "Impossible de charger les points ou coalitions") { loader.retryBasic(); loader.retryCoalitions() }
-				} content: {
-					if let p = loader.profile {
-						VStack(alignment: .leading, spacing: 12) {
-							HStack(spacing: 16) {
-								StatPill(title: "Wallet", value: "\(p.wallet)")
-								StatPill(title: "Points", value: "\(p.correctionPoint)")
-								Spacer()
-							}
-							if !p.displayableCoalitions.isEmpty {
-								VStack(alignment: .leading, spacing: 6) {
-									ForEach(p.displayableCoalitions, id: \.self) { coalition in
-										Text(coalition).font(.subheadline)
-									}
-								}
-							} else {
-								EmptyRow(text: "Aucune coalition")
-							}
-						}
-					}
-				}
+                LoadableSection(
+                    title: "Points et coalitions",
+                    state: mergedState(loader.basicState, loader.coalitionsState)
+                ) {
+                    LoadingListPlaceholder(lines: 3, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger les points ou coalitions") {
+                        loader.retryBasic()
+                        loader.retryCoalitions()
+                    }
+                } content: {
+                    if let p = loader.profile {
+                        PointsCoalitionsCard(profile: p)
+                    } else {
+                        LoadingListPlaceholder(lines: 3, compact: true)
+                    }
+                }
 
                 LoadableSection(title: "Log time", state: loader.logState) {
                     LoadingListPlaceholder(lines: 1, compact: true)
@@ -140,9 +87,32 @@ struct UserProfileView: View {
                         maxHeight: finishedProjectsSectionMaxHeight
                     )
                 } else {
-                    LoadableSection(title: "Succès", state: loader.basicState) { LoadingListPlaceholder(lines: 2, compact: true) } failed: { EmptyRow(text: "Erreur") } content: { EmptyRow(text: "Aucun succès") }
-                    LoadableSection(title: "Projets en cours", state: loader.projectsState) { LoadingListPlaceholder(lines: 2) } failed: { EmptyRow(text: "Erreur") } content: { EmptyRow(text: "Aucune donnée") }
-                    LoadableSection(title: "Projets terminés", state: loader.projectsState) { LoadingListPlaceholder(lines: 3) } failed: { EmptyRow(text: "Erreur") } content: { EmptyRow(text: "Aucune donnée") }
+                    LoadableSection(title: "Succès", state: loader.basicState) {
+                        LoadingListPlaceholder(lines: 2, compact: true)
+                    } failed: {
+                        EmptyRow(text: "Erreur")
+                    } content: {
+                        ContentUnavailableView("Aucun succès", systemImage: "trophy")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    LoadableSection(title: "Projets en cours", state: loader.projectsState) {
+                        LoadingListPlaceholder(lines: 2)
+                    } failed: {
+                        EmptyRow(text: "Erreur")
+                    } content: {
+                        ContentUnavailableView("Aucune donnée", systemImage: "hammer")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    LoadableSection(title: "Projets terminés", state: loader.projectsState) {
+                        LoadingListPlaceholder(lines: 3)
+                    } failed: {
+                        EmptyRow(text: "Erreur")
+                    } content: {
+                        ContentUnavailableView("Aucune donnée", systemImage: "checkmark.seal")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
 
                 if let updated = loader.lastUpdated {
@@ -155,6 +125,170 @@ struct UserProfileView: View {
             .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func mergedState(_ a: UserProfileLoader.SectionLoadState, _ b: UserProfileLoader.SectionLoadState) -> UserProfileLoader.SectionLoadState {
+        if a == .failed || b == .failed { return .failed }
+        if a == .loading || b == .loading || a == .idle || b == .idle { return .loading }
+        return .loaded
+    }
+}
+
+private struct IdentityCard: View {
+    let profile: UserProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 16) {
+                Avatar(url: profile.imageURL)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(profile.displayName).font(.title3.weight(.semibold))
+                    Text(profile.userNameWithTitle == profile.login ? profile.login : (profile.userNameWithTitle ?? profile.login))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(profile.displayableHostOrNA)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            if !profile.displayableContact.isEmpty || !(profile.campusLanguage ?? "").isEmpty {
+                VStack(spacing: 10) {
+                    ForEach(profile.displayableContact, id: \.self) { line in
+                        LabeledContent {
+                            Text(line).font(.subheadline)
+                        } label: {
+                            Image(systemName: iconForContact(line)).frame(width: 18)
+                        }
+                    }
+                    if let lang = profile.campusLanguage, !lang.isEmpty {
+                        LabeledContent {
+                            Text(lang).font(.subheadline)
+                        } label: {
+                            Image(systemName: "globe").frame(width: 18)
+                        }
+                    }
+                }
+            } else {
+                ContentUnavailableView("Aucune information", systemImage: "info.circle")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func iconForContact(_ s: String) -> String {
+        if s.contains("@") { return "envelope" }
+        if s.contains("—") || s.contains("(") { return "building.2" }
+        if CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: s.filter { $0.isNumber })) { return "phone" }
+        return "person"
+    }
+}
+
+private struct IdentitySkeleton: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            RoundedRectangle(cornerRadius: 16).fill(.gray.opacity(0.25)).frame(width: 120, height: 120)
+            VStack(alignment: .leading, spacing: 12) {
+                LoadingListPlaceholder(lines: 2, compact: true)
+                LoadingListPlaceholder(lines: 3, compact: true)
+            }
+            Spacer()
+        }
+    }
+}
+
+private struct Avatar: View {
+    let url: URL?
+    var body: some View {
+        Group {
+            if let u = url {
+                RemoteImage(url: u, cornerRadius: 16)
+            } else {
+                Color.gray.opacity(0.25)
+            }
+        }
+        .frame(width: 120, height: 120)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct StatusCursusCard: View {
+    let profile: UserProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !profile.displayableStatus.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(profile.displayableStatus, id: \.self) { s in
+                        Label(s, systemImage: iconForStatus(s))
+                            .font(.subheadline)
+                    }
+                }
+            }
+            if !profile.displayableCursus.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(profile.displayableCursus, id: \.self) { c in
+                        Label(c, systemImage: "graduationcap.fill")
+                            .font(.subheadline)
+                    }
+                }
+            }
+            if profile.displayableStatus.isEmpty && profile.displayableCursus.isEmpty {
+                ContentUnavailableView("Aucune information", systemImage: "info.circle")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func iconForStatus(_ s: String) -> String {
+        if s.localizedCaseInsensitiveContains("Actif") { return "bolt.fill" }
+        if s.localizedCaseInsensitiveContains("Piscine") { return "figure.pool.swim" }
+        return "person.crop.circle"
+    }
+}
+
+private struct PointsCoalitionsCard: View {
+    let profile: UserProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                MetricCapsule(title: "Wallet", systemImage: "creditcard.fill", value: "\(profile.wallet)")
+                MetricCapsule(title: "Points", systemImage: "scalemass.fill", value: "\(profile.correctionPoint)")
+                Spacer()
+            }
+            if !profile.displayableCoalitions.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(profile.displayableCoalitions, id: \.self) { line in
+                        Label(line, systemImage: "flag.2.crossed.fill")
+                            .font(.subheadline)
+                    }
+                }
+            } else {
+                ContentUnavailableView("Aucune coalition", systemImage: "flag.slash")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+private struct MetricCapsule: View {
+    let title: String
+    let systemImage: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.caption2).foregroundStyle(.secondary)
+                Text(value).font(.callout.weight(.semibold))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.accentColor.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.accentColor.opacity(0.2), lineWidth: 1))
     }
 }
 
@@ -208,7 +342,10 @@ struct SectionCard<Content: View>: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(Color.accentColor).padding(.bottom, 4)
+            Text(title)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.accentColor)
+                .padding(.bottom, 4)
             content
         }
         .padding(20)
@@ -371,11 +508,17 @@ private struct ShimmerBar: View {
                 .fill(Color.gray.opacity(0.25))
                 .overlay {
                     Rectangle()
-                        .fill(LinearGradient(stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .white.opacity(0.7), location: 0.5),
-                            .init(color: .clear, location: 1)
-                        ], startPoint: .leading, endPoint: .trailing))
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0),
+                                    .init(color: .white.opacity(0.7), location: 0.5),
+                                    .init(color: .clear, location: 1)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .frame(width: geo.size.width * 0.45)
                         .offset(x: animate ? geo.size.width : -geo.size.width)
                         .blendMode(.plusLighter)
@@ -459,7 +602,8 @@ private struct UnifiedItemsSection: View {
                     itemsView(items: items)
                 case .grouped(let g):
                     if g.options.isEmpty {
-                        EmptyRow(text: emptyText)
+                        ContentUnavailableView(emptyText, systemImage: "tray")
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         let safeSelection = Binding<Int>(
                             get: { selectedId ?? g.defaultId },
@@ -490,7 +634,8 @@ private struct UnifiedItemsSection: View {
     @ViewBuilder
     private func itemsView(items: [ProfileItem]) -> some View {
         if items.isEmpty {
-            EmptyRow(text: emptyText)
+            ContentUnavailableView(emptyText, systemImage: "tray")
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
@@ -603,7 +748,7 @@ private enum ItemsBuilder {
                 let subtitle = [p.status, p.teamStatus].compactMap { $0 }.joined(separator: " • ")
                 var badges: [String] = []
                 if let d = p.createdAt { badges.append(UserProfile.Formatters.shortDate.string(from: d)) }
-                if let r = p.retry, r > 0 { badges.append("Tentative \(r)") }
+                if let r = p.retry, r > 0 { badges.append("Retry \(r)") }
                 var sheetLines: [String] = badges
                 if let url = p.repoURL { sheetLines.append(url.absoluteString) }
                 return ProfileItem(
@@ -638,7 +783,7 @@ private enum ItemsBuilder {
                 if let d = p.closedAt { badges.append(UserProfile.Formatters.shortDate.string(from: d)) }
                 if let v = p.validated { badges.append(v ? "Validé" : "Non validé") }
                 if let m = p.finalMark { badges.append("Note \(m)") }
-                if let r = p.retry, r > 0 { badges.append("Tentative \(r)") }
+                if let r = p.retry, r > 0 { badges.append("Retry \(r)") }
                 return ProfileItem(
                     id: p.id,
                     icon: "checkmark.seal.fill",
