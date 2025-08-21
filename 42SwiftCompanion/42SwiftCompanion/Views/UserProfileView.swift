@@ -2,136 +2,186 @@ import SwiftUI
 import Charts
 
 struct UserProfileView: View {
-    let login: String
-    @StateObject private var loader: UserProfileLoader
-
-    init(login: String) {
-        self.login = login
-        _loader = StateObject(wrappedValue: UserProfileLoader(login: login))
-    }
+    @ObservedObject var loader: UserProfileLoader
 
     var body: some View {
-        VStack {
-            if let profile = loader.profile {
-                ScrollView {
-                    VStack(spacing: 24) {
-                        SectionCard(title: "Identité") {
-                            VStack(spacing: 8) {
-                                if let url = profile.imageURL {
-                                    AsyncImage(url: url) { image in
-                                        image.resizable().aspectRatio(contentMode: .fit)
-                                    } placeholder: {
-                                        Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16))
-                                    }
-                                    .frame(width: 120, height: 120)
-                                } else {
-                                    Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16)).redacted(reason: .placeholder)
+        ScrollView {
+            VStack(spacing: 24) {
+                LoadableSection(title: "Identité", state: loader.basicState) {
+                    VStack(spacing: 8) {
+                        Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16)).redacted(reason: .placeholder)
+                        LoadingListPlaceholder(lines: 2, compact: true)
+                    }
+                } failed: {
+                    RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
+                } content: {
+                    if let p = loader.profile {
+                        VStack(spacing: 8) {
+                            if let url = p.imageURL {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().aspectRatio(contentMode: .fit)
+                                } placeholder: {
+                                    Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16))
                                 }
-                                ProfileTextList(texts: [profile.displayName], font: .title)
-                                ProfileTextList(texts: [profile.login], font: .subheadline)
-                                ProfileTextList(texts: [profile.displayableHostOrNA], font: .subheadline)
-                            }
-                        }
-                        SectionCard(title: "Contact et campus") {
-                            if profile.displayableContact.isEmpty {
-                                LoadingListPlaceholder(lines: 2, compact: true)
+                                .frame(width: 120, height: 120)
                             } else {
-                                ProfileTextList(texts: profile.displayableContact, font: .subheadline)
+                                Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16)).redacted(reason: .placeholder)
                             }
-                        }
-                        SectionCard(title: "Statut et cursus") {
-                            if profile.displayableStatus.isEmpty && profile.displayableCursus.isEmpty {
-                                LoadingListPlaceholder(lines: 2, compact: true)
-                            } else {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ProfileTextList(texts: profile.displayableStatus, font: .subheadline)
-                                    ProfileTextList(texts: profile.displayableCursus, font: .subheadline)
-                                }
-                            }
-                        }
-                        SectionCard(title: "Points") {
-                            ProfileTextList(texts: ["Wallet: \(profile.wallet) | Points: \(profile.correctionPoint)"], font: .subheadline)
-                        }
-                        SectionCard(title: "Log time") {
-                            WeeklyLogCard(logs: loader.weeklyLog)
-                        }
-                        SectionCard(title: "Coalitions") {
-                            switch loader.coalitionsState {
-                            case .loading:
-                                LoadingListPlaceholder(lines: 2, compact: true)
-                            case .failed:
-                                RetryRow(title: "Impossible de charger les coalitions") { loader.retryCoalitions() }
-                            default:
-                                if profile.displayableCoalitions.isEmpty {
-                                    EmptyRow(text: "Aucune coalition")
-                                } else {
-                                    ProfileTextList(texts: profile.displayableCoalitions)
-                                }
-                            }
-                        }
-                        SectionCard(title: "Succès") {
-                            if profile.displayableAchievements.isEmpty {
-                                EmptyRow(text: "Aucun succès")
-                            } else {
-                                ProfileTextList(texts: profile.displayableAchievements)
-                            }
-                        }
-                        SectionCard(title: "Projets terminés") {
-                            switch loader.projectsState {
-                            case .loading:
-                                LoadingListPlaceholder(lines: 3)
-                            case .failed:
-                                RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
-                            default:
-                                if profile.displayableFinishedProjects.isEmpty {
-                                    EmptyRow(text: "Aucun projet terminé")
-                                } else {
-                                    ProfileTextList(texts: profile.displayableFinishedProjects)
-                                }
-                            }
-                        }
-                        SectionCard(title: "Projets en cours") {
-                            switch loader.projectsState {
-                            case .loading:
-                                LoadingListPlaceholder(lines: 2)
-                            case .failed:
-                                RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
-                            default:
-                                if profile.displayableActiveProjects.isEmpty {
-                                    EmptyRow(text: "Aucun projet en cours")
-                                } else {
-                                    ProfileTextList(texts: profile.displayableActiveProjects)
-                                }
-                            }
-                        }
-                        if !profile.displayableHost.isEmpty {
-                            SectionCard(title: "Poste") {
-                                ProfileTextList(texts: profile.displayableHost)
-                            }
+                            ProfileTextList(texts: [p.displayName], font: .title)
+                            ProfileTextList(texts: [p.login], font: .subheadline)
+                            ProfileTextList(texts: [p.displayableHostOrNA], font: .subheadline)
                         }
                     }
-                    .padding()
                 }
-            } else {
-                ProgressView()
+
+                LoadableSection(title: "Contact et campus", state: loader.basicState) {
+                    LoadingListPlaceholder(lines: 2, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger le contact") { loader.retryBasic() }
+                } content: {
+                    if let p = loader.profile, !p.displayableContact.isEmpty {
+                        ProfileTextList(texts: p.displayableContact, font: .subheadline)
+                    } else {
+                        EmptyRow(text: "Aucune information")
+                    }
+                }
+
+                LoadableSection(title: "Statut et cursus", state: loader.basicState) {
+                    LoadingListPlaceholder(lines: 2, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger le statut") { loader.retryBasic() }
+                } content: {
+                    if let p = loader.profile, !(p.displayableStatus.isEmpty && p.displayableCursus.isEmpty) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ProfileTextList(texts: p.displayableStatus, font: .subheadline)
+                            ProfileTextList(texts: p.displayableCursus, font: .subheadline)
+                        }
+                    } else {
+                        EmptyRow(text: "Aucune information")
+                    }
+                }
+
+                LoadableSection(title: "Points", state: loader.basicState) {
+                    LoadingListPlaceholder(lines: 1, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger les points") { loader.retryBasic() }
+                } content: {
+                    if let p = loader.profile {
+                        ProfileTextList(texts: ["Wallet: \(p.wallet) | Points: \(p.correctionPoint)"], font: .subheadline)
+                    }
+                }
+
+                LoadableSection(title: "Log time", state: loader.logState) {
+                    LoadingListPlaceholder(lines: 1, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger le log time") { loader.retryLog() }
+                } content: {
+                    WeeklyLogCard(logs: loader.weeklyLog)
+                }
+
+                LoadableSection(title: "Coalitions", state: loader.coalitionsState) {
+                    LoadingListPlaceholder(lines: 2, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger les coalitions") { loader.retryCoalitions() }
+                } content: {
+                    if let p = loader.profile, !p.displayableCoalitions.isEmpty {
+                        ProfileTextList(texts: p.displayableCoalitions)
+                    } else {
+                        EmptyRow(text: "Aucune coalition")
+                    }
+                }
+
+                LoadableSection(title: "Succès", state: loader.basicState) {
+                    LoadingListPlaceholder(lines: 2, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger les succès") { loader.retryBasic() }
+                } content: {
+                    if let p = loader.profile, !p.displayableAchievements.isEmpty {
+                        ProfileTextList(texts: p.displayableAchievements)
+                    } else {
+                        EmptyRow(text: "Aucun succès")
+                    }
+                }
+
+                LoadableSection(title: "Projets terminés", state: loader.projectsState) {
+                    LoadingListPlaceholder(lines: 3)
+                } failed: {
+                    RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
+                } content: {
+                    if let p = loader.profile, !p.displayableFinishedProjects.isEmpty {
+                        ProfileTextList(texts: p.displayableFinishedProjects)
+                    } else {
+                        EmptyRow(text: "Aucun projet terminé")
+                    }
+                }
+
+                LoadableSection(title: "Projets en cours", state: loader.projectsState) {
+                    LoadingListPlaceholder(lines: 2)
+                } failed: {
+                    RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
+                } content: {
+                    if let p = loader.profile, !p.displayableActiveProjects.isEmpty {
+                        ProfileTextList(texts: p.displayableActiveProjects)
+                    } else {
+                        EmptyRow(text: "Aucun projet en cours")
+                    }
+                }
+
+                LoadableSection(title: "Poste", state: loader.hostState) {
+                    LoadingListPlaceholder(lines: 1, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger le poste") { loader.retryHost() }
+                } content: {
+                    if let p = loader.profile, !p.displayableHost.isEmpty {
+                        ProfileTextList(texts: p.displayableHost)
+                    } else {
+                        EmptyRow(text: "Non disponible")
+                    }
+                }
             }
+            .padding()
         }
-        .onAppear { loader.start() }
-        .onDisappear { loader.stop() }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-struct MyProfileView: View {
-    @EnvironmentObject var authService: AuthService
+private struct LoadableSection<Content: View, Loading: View, Failed: View>: View {
+    let title: String
+    let state: UserProfileLoader.SectionLoadState
+    let loading: Loading
+    let failed: Failed
+    let content: Content
+
+    init(title: String,
+         state: UserProfileLoader.SectionLoadState,
+         @ViewBuilder loading: () -> Loading,
+         @ViewBuilder failed: () -> Failed,
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.state = state
+        self.loading = loading()
+        self.failed = failed()
+        self.content = content()
+    }
+
     var body: some View {
-        let login = authService.getCurrentUserLogin()
-        Group {
-            if login.isEmpty {
-                ProgressView()
-            } else {
-                UserProfileView(login: login)
+        SectionCard(title: title) {
+            switch state {
+            case .loading: loading
+            case .failed: failed
+            default: content
             }
+        }
+    }
+}
+
+struct MyProfileView: View {
+    @EnvironmentObject var profileStore: ProfileStore
+    var body: some View {
+        if let loader = profileStore.loader {
+            UserProfileView(loader: loader)
+        } else {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -145,22 +195,13 @@ struct SectionCard<Content: View>: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.accentColor)
-                .padding(.bottom, 4)
+            Text(title).font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(Color.accentColor).padding(.bottom, 4)
             content
         }
         .padding(20)
         .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.18), lineWidth: 1.5)
-        )
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.accentColor.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.accentColor.opacity(0.18), lineWidth: 1.5))
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
         .padding(.horizontal, 8)
     }
@@ -195,9 +236,7 @@ struct WeeklyLogCard: View {
         }
     }
 
-    private var totalHours: Double {
-        sorted.reduce(0) { $0 + $1.hours }
-    }
+    private var totalHours: Double { sorted.reduce(0) { $0 + $1.hours } }
 
     private var avgHours: Double {
         guard !sorted.isEmpty else { return 0 }
@@ -221,20 +260,15 @@ struct WeeklyLogCard: View {
         return s...e
     }
 
-    private var hasAnyData: Bool {
-        sorted.contains { $0.hours > 0 }
-    }
+    private var hasAnyData: Bool { sorted.contains { $0.hours > 0 } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Chart(sorted) { item in
-                BarMark(
-                    x: .value("Date", item.date),
-                    y: .value("Heures", item.hours)
-                )
-                .cornerRadius(8)
-                .foregroundStyle(Color.accentColor)
-                .opacity(item.hours > 0 ? 1 : 0.35)
+                BarMark(x: .value("Date", item.date), y: .value("Heures", item.hours))
+                    .cornerRadius(8)
+                    .foregroundStyle(Color.accentColor)
+                    .opacity(item.hours > 0 ? 1 : 0.35)
                 if item.hours > 0 {
                     PointMark(x: .value("Date", item.date), y: .value("Heures", item.hours))
                 }
@@ -245,9 +279,7 @@ struct WeeklyLogCard: View {
                 AxisMarks(values: .stride(by: .day)) { value in
                     AxisGridLine()
                     AxisValueLabel {
-                        if let d = value.as(Date.self) {
-                            Text(d, format: .dateTime.weekday(.narrow))
-                        }
+                        if let d = value.as(Date.self) { Text(d, format: .dateTime.weekday(.narrow)) }
                     }
                 }
             }
@@ -255,9 +287,7 @@ struct WeeklyLogCard: View {
                 AxisMarks(position: .leading) { value in
                     AxisGridLine()
                     AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            Text(v.formatted(.number.precision(.fractionLength(0))))
-                        }
+                        if let v = value.as(Double.self) { Text(v.formatted(.number.precision(.fractionLength(0)))) }
                     }
                 }
             }
@@ -265,12 +295,8 @@ struct WeeklyLogCard: View {
             .overlay {
                 if !hasAnyData {
                     VStack(spacing: 6) {
-                        Image(systemName: "wave.3.right.circle")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
-                        Text("Aucune présence sur les 14 derniers jours")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        Image(systemName: "wave.3.right.circle").font(.title3).foregroundStyle(.secondary)
+                        Text("Aucune présence sur les 14 derniers jours").font(.footnote).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -300,14 +326,8 @@ private struct StatPill: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.accentColor.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
-        )
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.accentColor.opacity(0.2), lineWidth: 1))
     }
 }
 
@@ -317,10 +337,7 @@ struct LoadingListPlaceholder: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 6 : 10) {
             ForEach(0..<lines, id: \.self) { _ in
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.gray.opacity(0.3))
-                    .frame(height: compact ? 10 : 14)
-                    .redacted(reason: .placeholder)
+                RoundedRectangle(cornerRadius: 8).fill(.gray.opacity(0.3)).frame(height: compact ? 10 : 14).redacted(reason: .placeholder)
             }
         }
     }
@@ -332,8 +349,7 @@ struct RetryRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-            Text(title)
-                .font(.subheadline)
+            Text(title).font(.subheadline)
             Spacer()
             Button("Réessayer", action: action)
         }

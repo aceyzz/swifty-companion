@@ -48,13 +48,11 @@ final class LocationRepository {
             return zeros(from: todayStart, days: days)
         }
 
-        if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .isoDateTime),
-           hasAnyValue(stats) {
+        if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .isoDateTime), hasAnyValue(stats) {
             return mapStats(stats, begin: beginDate, days: days, df: df, cal: cal)
         }
 
-        if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .dateOnly),
-           hasAnyValue(stats) {
+        if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .dateOnly), hasAnyValue(stats) {
             return mapStats(stats, begin: beginDate, days: days, df: df, cal: cal)
         }
 

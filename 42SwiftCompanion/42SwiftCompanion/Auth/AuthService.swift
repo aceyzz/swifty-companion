@@ -13,29 +13,14 @@ struct APIConfig {
 enum KeychainHelper {
     static func set(_ value: String, service: String, account: String) {
         guard let data = value.data(using: .utf8) else { return }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
         SecItemDelete(query as CFDictionary)
-        let attributes: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data
-        ]
+        let attributes: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account, kSecValueData as String: data]
         SecItemAdd(attributes as CFDictionary, nil)
     }
 
     static func get(service: String, account: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
         var dataTypeRef: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
         guard status == errSecSuccess, let data = dataTypeRef as? Data else { return nil }
@@ -43,11 +28,7 @@ enum KeychainHelper {
     }
 
     static func delete(service: String, account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
         SecItemDelete(query as CFDictionary)
     }
 }
@@ -57,6 +38,7 @@ final class AuthService: NSObject, ObservableObject {
     static let shared = AuthService()
 
     @Published private(set) var isAuthenticated = false
+    @Published private(set) var currentLogin: String = ""
 
     private let service = "intra.42.fr"
     private let accessAccount = "accessToken"
@@ -70,25 +52,24 @@ final class AuthService: NSObject, ObservableObject {
     private var tokenUrl: String { "https://api.intra.42.fr/oauth/token" }
     private var authorizeUrl: String { "https://api.intra.42.fr/oauth/authorize" }
 
+    override private init() {
+        super.init()
+        currentLogin = UserDefaults.standard.string(forKey: userLoginKey) ?? ""
+    }
+
     var accessToken: String? {
         get { KeychainHelper.get(service: service, account: accessAccount) }
         set {
-            if let value = newValue {
-                KeychainHelper.set(value, service: service, account: accessAccount)
-            } else {
-                KeychainHelper.delete(service: service, account: accessAccount)
-            }
+            if let value = newValue { KeychainHelper.set(value, service: service, account: accessAccount) }
+            else { KeychainHelper.delete(service: service, account: accessAccount) }
         }
     }
 
     var refreshToken: String? {
         get { KeychainHelper.get(service: service, account: refreshAccount) }
         set {
-            if let value = newValue {
-                KeychainHelper.set(value, service: service, account: refreshAccount)
-            } else {
-                KeychainHelper.delete(service: service, account: refreshAccount)
-            }
+            if let value = newValue { KeychainHelper.set(value, service: service, account: refreshAccount) }
+            else { KeychainHelper.delete(service: service, account: refreshAccount) }
         }
     }
 
@@ -98,19 +79,15 @@ final class AuthService: NSObject, ObservableObject {
             return Date(timeIntervalSince1970: interval)
         }
         set {
-            if let date = newValue {
-                UserDefaults.standard.set(date.timeIntervalSince1970, forKey: expirationKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: expirationKey)
-            }
+            if let date = newValue { UserDefaults.standard.set(date.timeIntervalSince1970, forKey: expirationKey) }
+            else { UserDefaults.standard.removeObject(forKey: expirationKey) }
         }
     }
 
-    func getCurrentUserLogin() -> String {
-        UserDefaults.standard.string(forKey: userLoginKey) ?? ""
-    }
+    func getCurrentUserLogin() -> String { currentLogin }
 
     private func setCurrentUserLogin(_ login: String) {
+        currentLogin = login
         UserDefaults.standard.set(login, forKey: userLoginKey)
     }
 
@@ -118,8 +95,8 @@ final class AuthService: NSObject, ObservableObject {
         if let token = accessToken, let expiration = tokenExpiration, expiration > Date(), !token.isEmpty {
             isAuthenticated = true
             Task {
-                await self.startRefreshLoop()
-                if self.getCurrentUserLogin().isEmpty { await self.fetchAndStoreCurrentUserLogin() }
+                await startRefreshLoop()
+                if currentLogin.isEmpty { await fetchAndStoreCurrentUserLogin() }
             }
         } else {
             isAuthenticated = false
@@ -143,10 +120,12 @@ final class AuthService: NSObject, ObservableObject {
         accessToken = nil
         refreshToken = nil
         tokenExpiration = nil
+        currentLogin = ""
         isAuthenticated = false
         UserDefaults.standard.removeObject(forKey: userLoginKey)
         cancelRefreshLoop()
         ProfileStore.shared.stop()
+        session = nil
     }
 
     private func startRefreshLoop() async {
@@ -176,17 +155,16 @@ final class AuthService: NSObject, ObservableObject {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let access = json["access_token"] as? String,
-                   let refresh = json["refresh_token"] as? String,
-                   let expires = json["expires_in"] as? Double {
-                    accessToken = access
-                    refreshToken = refresh
-                    tokenExpiration = Date().addingTimeInterval(expires)
-                    isAuthenticated = true
-                    await fetchAndStoreCurrentUserLogin()
-                    await startRefreshLoop()
-                }
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let access = json["access_token"] as? String,
+               let refresh = json["refresh_token"] as? String,
+               let expires = json["expires_in"] as? Double {
+                accessToken = access
+                refreshToken = refresh
+                tokenExpiration = Date().addingTimeInterval(expires)
+                isAuthenticated = true
+                await fetchAndStoreCurrentUserLogin()
+                await startRefreshLoop()
             }
         } catch {
             isAuthenticated = false
@@ -203,6 +181,7 @@ final class AuthService: NSObject, ObservableObject {
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let login = json["login"] as? String {
                 setCurrentUserLogin(login)
+                ProfileStore.shared.start(for: login)
             }
         } catch {}
     }
@@ -221,9 +200,7 @@ final class AuthService: NSObject, ObservableObject {
                let expiresIn = json["expires_in"] as? Double {
                 accessToken = token
                 tokenExpiration = Date().addingTimeInterval(expiresIn)
-                if let newRefresh = json["refresh_token"] as? String {
-                    refreshToken = newRefresh
-                }
+                if let newRefresh = json["refresh_token"] as? String { refreshToken = newRefresh }
                 isAuthenticated = true
             }
         } catch {

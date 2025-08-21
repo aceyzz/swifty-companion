@@ -3,6 +3,7 @@ import Foundation
 struct CachedProfile: Codable {
     let profile: UserProfile
     let fetchedAt: Date
+    let logs: [DailyLog]?
 }
 
 actor ProfileCache {

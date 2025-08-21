@@ -199,19 +199,11 @@ extension UserProfile {
         self.userNameWithTitle = raw.login
         self.currentHost = currentHost
         self.cursus = raw.cursus_users.map {
-            UserProfile.Cursus(id: $0.cursus_id ?? 0,
-                               grade: $0.grade,
-                               level: $0.level,
-                               beginAt: DateParser.iso($0.begin_at),
-                               endAt: DateParser.iso($0.end_at),
-                               name: $0.cursus.name)
+            UserProfile.Cursus(id: $0.cursus_id ?? 0, grade: $0.grade, level: $0.level, beginAt: DateParser.iso($0.begin_at), endAt: DateParser.iso($0.end_at), name: $0.cursus.name)
         }
         self.coalitions = coalitions
         self.achievements = raw.achievements.map {
-            UserProfile.Achievement(id: $0.id,
-                                    name: $0.name,
-                                    description: $0.description,
-                                    image: URL(string: $0.image))
+            UserProfile.Achievement(id: $0.id, name: $0.name, description: $0.description, image: URL(string: $0.image))
         }
         self.finishedProjects = finishedProjects
         self.activeProjects = activeProjects
