@@ -150,10 +150,10 @@ final class LocationRepository {
 
     private func aggregate(locs: [LocationRaw], from: Date, to: Date, cal: Calendar) -> [DailyLog] {
         let startDay = cal.startOfDay(for: from)
-        let endDay = cal.startOfDay(for: to)
+        let endExclusive = cal.startOfDay(for: to)
         var bucket: [Date: TimeInterval] = [:]
         var day = startDay
-        while day <= endDay {
+        while day < endExclusive {
             bucket[day] = 0
             guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
             day = next

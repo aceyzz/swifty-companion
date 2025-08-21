@@ -102,14 +102,14 @@ extension UserProfile {
         return arr
     }
 
-    var displayableCursus: [String] {
-        cursus.compactMap {
-            var s = $0.name ?? "Cursus"
-            if let level = $0.level { s += " — Niveau \(level.formatted(.number.precision(.fractionLength(2))))" }
-            if let grade = $0.grade, !grade.isEmpty { s += " — \(grade)" }
-            return s
-        }
-    }
+	var displayableCursus: [String] {
+		cursus.sorted { ($0.level ?? 0) > ($1.level ?? 0) }.compactMap {
+			var s = $0.name ?? "Cursus"
+			if let level = $0.level { s += " — Niveau \(level.formatted(.number.precision(.fractionLength(2))))" }
+			if let grade = $0.grade, !grade.isEmpty { s += " — \(grade)" }
+			return s
+		}
+	}
 
     var displayableCoalitions: [String] {
         coalitions.map {

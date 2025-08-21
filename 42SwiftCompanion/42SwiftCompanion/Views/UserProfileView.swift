@@ -10,62 +10,62 @@ struct UserProfileView: View {
 
     var body: some View {
         ScrollView {
-			LazyVStack(spacing: 24) {
-				LoadableSection(title: "Identité", state: loader.basicState) {
-					HStack(alignment: .top, spacing: 16) {
-						VStack(alignment: .leading, spacing: 16) {
-							VStack(alignment: .leading, spacing: 8) {
-								LoadingListPlaceholder(lines: 2, compact: true)
-							}
-							VStack(alignment: .leading, spacing: 8) {
-								LoadingListPlaceholder(lines: 3, compact: true)
-							}
-						}
-						Spacer()
-						VStack(spacing: 6) {
-							Color.gray
-								.frame(width: 120, height: 120)
-								.clipShape(RoundedRectangle(cornerRadius: 16))
-								.redacted(reason: .placeholder)
-						}
-					}
-				} failed: {
-					RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
-				} content: {
-					if let p = loader.profile {
-						HStack(alignment: .top, spacing: 16) {
-							VStack(alignment: .leading, spacing: 16) {
-								VStack(alignment: .leading, spacing: 8) {
-									ProfileTextList(texts: [p.displayName], font: .headline)
-									ProfileTextList(texts: [p.userNameWithTitle == p.login ? p.login : (p.userNameWithTitle ?? p.login)], font: .caption)
-									ProfileTextList(texts: [p.displayableHostOrNA], font: .caption)
-								}
-								if !p.displayableContact.isEmpty {
-									VStack(alignment: .leading, spacing: 8) {
-										ProfileTextList(texts: p.displayableContact, font: .caption)
-										if let lang = loader.profile?.campusLanguage, !lang.isEmpty {
-											ProfileTextList(texts: ["Langue du campus: \(lang)"], font: .caption2)
-										}
-									}
-								} else {
-									EmptyRow(text: "Aucune information")
-								}
-							}
-							Spacer()
-							VStack(spacing: 6) {
-								if let url = p.imageURL {
-									RemoteImage(url: url, cornerRadius: 16)
-										.frame(width: 120, height: 120)
-								} else {
-									Color.gray
-										.frame(width: 120, height: 120)
-										.clipShape(RoundedRectangle(cornerRadius: 16))
-										.redacted(reason: .placeholder)
-								}
-							}
-						}
-					}
-				}
+            LazyVStack(spacing: 24) {
+                LoadableSection(title: "Identité", state: loader.basicState) {
+                    HStack(alignment: .top, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                LoadingListPlaceholder(lines: 2, compact: true)
+                            }
+                            VStack(alignment: .leading, spacing: 8) {
+                                LoadingListPlaceholder(lines: 3, compact: true)
+                            }
+                        }
+                        Spacer()
+                        VStack(spacing: 6) {
+                            Color.gray
+                                .frame(width: 120, height: 120)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .redacted(reason: .placeholder)
+                        }
+                    }
+                } failed: {
+                    RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
+                } content: {
+                    if let p = loader.profile {
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ProfileTextList(texts: [p.displayName], font: .headline)
+                                    ProfileTextList(texts: [p.userNameWithTitle == p.login ? p.login : (p.userNameWithTitle ?? p.login)], font: .caption)
+                                    ProfileTextList(texts: [p.displayableHostOrNA], font: .caption)
+                                }
+                                if !p.displayableContact.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ProfileTextList(texts: p.displayableContact, font: .caption)
+                                        if let lang = loader.profile?.campusLanguage, !lang.isEmpty {
+                                            ProfileTextList(texts: ["Langue du campus: \(lang)"], font: .caption2)
+                                        }
+                                    }
+                                } else {
+                                    EmptyRow(text: "Aucune information")
+                                }
+                            }
+                            Spacer()
+                            VStack(spacing: 6) {
+                                if let url = p.imageURL {
+                                    RemoteImage(url: url, cornerRadius: 16)
+                                        .frame(width: 120, height: 120)
+                                } else {
+                                    Color.gray
+                                        .frame(width: 120, height: 120)
+                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .redacted(reason: .placeholder)
+                                }
+                            }
+                        }
+                    }
+                }
 
                 LoadableSection(title: "Statut et cursus", state: loader.basicState) {
                     LoadingListPlaceholder(lines: 2, compact: true)
@@ -230,96 +230,104 @@ struct ProfileTextList: View {
 }
 
 struct WeeklyLogCard: View {
-	let logs: [DailyLog]
+    let logs: [DailyLog]
 
-	private var sorted: [DailyLog] {
-		if logs.isEmpty {
-			var cal = Calendar(identifier: .gregorian)
-			cal.timeZone = TimeZone.current
-			let today = cal.startOfDay(for: Date())
-			return (0..<14).compactMap { i in
-				guard let d = cal.date(byAdding: .day, value: -(13 - i), to: today) else { return nil }
-				return DailyLog(date: d, hours: 0)
-			}
-		} else {
-			return logs.sorted { $0.date < $1.date }
-		}
-	}
+    private var series: [DailyLog] {
+        if logs.isEmpty {
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = TimeZone.current
+            let today = cal.startOfDay(for: Date())
+            return (0..<14).compactMap { i in
+                guard let d = cal.date(byAdding: .day, value: -(13 - i), to: today) else { return nil }
+                return DailyLog(date: d, hours: 0)
+            }
+        } else {
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = TimeZone.current
+            var bucket: [Date: Double] = [:]
+            for l in logs {
+                let day = cal.startOfDay(for: l.date)
+                bucket[day, default: 0] += l.hours
+            }
+            let keys = bucket.keys.sorted()
+            return keys.map { DailyLog(date: $0, hours: bucket[$0] ?? 0) }
+        }
+    }
 
-	private var totalHours: Double { sorted.reduce(0) { $0 + $1.hours } }
-	private var avgHours: Double { sorted.isEmpty ? 0 : totalHours / Double(sorted.count) }
-	private var yMax: Double { max(1, ceil((sorted.map(\.hours).max() ?? 0) + 0.5)) }
+    private var totalHours: Double { series.reduce(0) { $0 + $1.hours } }
+    private var avgHours: Double { series.isEmpty ? 0 : totalHours / Double(series.count) }
+    private var yMax: Double { max(1, ceil((series.map(\.hours).max() ?? 0) + 0.5)) }
 
-	private var xDomain: ClosedRange<Date> {
-		let cal = Calendar.current
-		guard let first = sorted.first?.date, let last = sorted.last?.date else {
-			let s = cal.startOfDay(for: Date())
-			let e = cal.date(byAdding: .day, value: 1, to: s) ?? s
-			return s...e
-		}
-		let s = cal.startOfDay(for: first)
-		let e = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: last)) ?? last
-		return s...e
-	}
+    private var xDomain: ClosedRange<Date> {
+        let cal = Calendar.current
+        guard let first = series.first?.date, let last = series.last?.date else {
+            let s = cal.startOfDay(for: Date())
+            let e = cal.date(byAdding: .day, value: 1, to: s) ?? s
+            return s...e
+        }
+        let s = cal.startOfDay(for: first)
+        let e = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: last)) ?? last
+        return s...e
+    }
 
-	private var hasAnyData: Bool { sorted.contains { $0.hours > 0 } }
+    private var hasAnyData: Bool { series.contains { $0.hours > 0 } }
 
-	var body: some View {
-		VStack(alignment: .leading, spacing: 12) {
-			Text("Présence en cluster sur les 14 derniers jours (en heures)")
-				.font(.caption)
-				.foregroundStyle(.secondary)
-				.padding(.bottom, 8)
-			Chart(sorted) { item in
-				BarMark(x: .value("Date", item.date, unit: .day), y: .value("Heures", item.hours))
-					.cornerRadius(8)
-					.foregroundStyle(Color.accentColor)
-					.opacity(item.hours > 0 ? 1 : 0.35)
-				if item.hours > 0 {
-					PointMark(x: .value("Date", item.date, unit: .day), y: .value("Heures", item.hours))
-				}
-			}
-			.chartXScale(domain: xDomain)
-			.chartYScale(domain: 0...yMax)
-			.chartXAxis {
-				AxisMarks(values: .stride(by: .day)) { value in
-					AxisGridLine()
-					AxisValueLabel {
-						if let d = value.as(Date.self) { Text(d, format: .dateTime.weekday(.narrow)) }
-					}
-				}
-			}
-			.chartYAxis {
-				AxisMarks(position: .leading) { value in
-					AxisGridLine()
-					AxisValueLabel {
-						if let v = value.as(Double.self) { Text(v.formatted(.number.precision(.fractionLength(0)))) }
-					}
-				}
-			}
-			.frame(height: 140)
-			.overlay {
-				if !hasAnyData {
-					VStack(spacing: 6) {
-						Image(systemName: "wave.3.right.circle").font(.title3).foregroundStyle(.secondary)
-						Text("Aucune présence sur les 14 derniers jours").font(.footnote).foregroundStyle(.secondary)
-					}
-				}
-			}
-			HStack(spacing: 10) {
-				StatPill(title: "Total", value: formattedHours(totalHours))
-				StatPill(title: "Moyenne", value: formattedHours(avgHours))
-				Spacer()
-			}
-		}
-	}
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Présence en cluster sur les 14 derniers jours (en heures)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 8)
+            Chart(series) { item in
+                BarMark(x: .value("Date", item.date, unit: .day), y: .value("Heures", item.hours))
+                    .cornerRadius(8)
+                    .foregroundStyle(Color.accentColor)
+                    .opacity(item.hours > 0 ? 1 : 0.35)
+                if item.hours > 0 {
+                    PointMark(x: .value("Date", item.date, unit: .day), y: .value("Heures", item.hours))
+                }
+            }
+            .chartXScale(domain: xDomain)
+            .chartYScale(domain: 0...yMax)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let d = value.as(Date.self) { Text(d, format: .dateTime.weekday(.narrow)) }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let v = value.as(Double.self) { Text(v.formatted(.number.precision(.fractionLength(0)))) }
+                    }
+                }
+            }
+            .frame(height: 140)
+            .overlay {
+                if !hasAnyData {
+                    VStack(spacing: 6) {
+                        Image(systemName: "wave.3.right.circle").font(.title3).foregroundStyle(.secondary)
+                        Text("Aucune présence sur les 14 derniers jours").font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            HStack(spacing: 10) {
+                StatPill(title: "Total", value: formattedHours(totalHours))
+                StatPill(title: "Moyenne", value: formattedHours(avgHours))
+                Spacer()
+            }
+        }
+    }
 
-	private func formattedHours(_ h: Double) -> String {
-		let minutes = Int((h * 60).rounded())
-		let hh = minutes / 60
-		let mm = minutes % 60
-		return mm == 0 ? "\(hh) h" : "\(hh) h \(mm) min"
-	}
+    private func formattedHours(_ h: Double) -> String {
+        let minutes = Int((h * 60).rounded())
+        let hh = minutes / 60
+        let mm = minutes % 60
+        return mm == 0 ? "\(hh) h" : "\(hh) h \(mm) min"
+    }
 }
 
 private struct StatPill: View {
