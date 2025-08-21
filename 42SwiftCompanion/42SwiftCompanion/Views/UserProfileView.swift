@@ -167,9 +167,9 @@ private struct LoadableSection<Content: View, Loading: View, Failed: View>: View
     var body: some View {
         SectionCard(title: title) {
             switch state {
-            case .loading: loading
+            case .loading, .idle: loading
             case .failed: failed
-            default: content
+            case .loaded: content
             }
         }
     }

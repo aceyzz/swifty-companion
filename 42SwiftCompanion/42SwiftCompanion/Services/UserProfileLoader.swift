@@ -109,10 +109,10 @@ final class UserProfileLoader: ObservableObject {
         weeklyLog = cached.logs ?? []
         lastFetchAt = cached.fetchedAt
         basicState = .loaded
-        if !(cached.profile.coalitions.isEmpty) { coalitionsState = .loaded }
-        if !(cached.profile.finishedProjects.isEmpty && cached.profile.activeProjects.isEmpty) { projectsState = .loaded }
-        if cached.profile.currentHost != nil { hostState = .loaded }
-        if cached.logs != nil { logState = .loaded }
+        coalitionsState = cached.profile.coalitions.isEmpty ? .loading : .loaded
+        projectsState = (cached.profile.finishedProjects.isEmpty && cached.profile.activeProjects.isEmpty) ? .loading : .loaded
+        hostState = cached.profile.currentHost == nil ? .loading : .loaded
+        logState = cached.logs == nil ? .loading : .loaded
     }
 
     private func beginRefreshing() {
