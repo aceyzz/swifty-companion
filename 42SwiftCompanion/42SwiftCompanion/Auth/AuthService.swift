@@ -33,6 +33,16 @@ enum KeychainHelper {
     }
 }
 
+private struct TokenResponse: Decodable {
+    let access_token: String
+    let refresh_token: String?
+    let expires_in: Double
+}
+
+private struct MeLogin: Decodable {
+    let login: String
+}
+
 @MainActor
 final class AuthService: NSObject, ObservableObject {
     static let shared = AuthService()
@@ -112,9 +122,13 @@ final class AuthService: NSObject, ObservableObject {
             guard let self else { return }
             if error != nil { self.isPostWebAuthLoading = false; return }
             guard let url = callbackURL else { self.isPostWebAuthLoading = false; return }
-            guard let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value else { self.isPostWebAuthLoading = false; return }
+            guard let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "code" })?.value else { self.isPostWebAuthLoading = false; return }
             self.isPostWebAuthLoading = true
-            Task { await self.exchangeCodeForTokens(code: code); self.isPostWebAuthLoading = false }
+            Task {
+                defer { self.isPostWebAuthLoading = false }
+                await self.exchangeCodeForTokens(code: code)
+            }
         }
         session?.presentationContextProvider = self
         session?.start()
@@ -151,6 +165,13 @@ final class AuthService: NSObject, ObservableObject {
         refreshTask = nil
     }
 
+    private func updateTokens(_ t: TokenResponse) {
+        accessToken = t.access_token
+        if let r = t.refresh_token { refreshToken = r }
+        tokenExpiration = Date().addingTimeInterval(t.expires_in)
+        isAuthenticated = true
+    }
+
     private func exchangeCodeForTokens(code: String) async {
         guard let url = URL(string: tokenUrl) else { return }
         var request = URLRequest(url: url)
@@ -160,16 +181,12 @@ final class AuthService: NSObject, ObservableObject {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let access = json["access_token"] as? String,
-               let refresh = json["refresh_token"] as? String,
-               let expires = json["expires_in"] as? Double {
-                accessToken = access
-                refreshToken = refresh
-                tokenExpiration = Date().addingTimeInterval(expires)
-                isAuthenticated = true
+            if let tokens = try? JSONDecoder().decode(TokenResponse.self, from: data) {
+                updateTokens(tokens)
                 await fetchAndStoreCurrentUserLogin()
                 await startRefreshLoop()
+            } else {
+                isAuthenticated = false
             }
         } catch {
             isAuthenticated = false
@@ -177,17 +194,10 @@ final class AuthService: NSObject, ObservableObject {
     }
 
     private func fetchAndStoreCurrentUserLogin() async {
-        guard let token = accessToken else { return }
-        guard let url = URL(string: "https://api.intra.42.fr/v2/me") else { return }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let login = json["login"] as? String {
-                setCurrentUserLogin(login)
-                ProfileStore.shared.start(for: login)
-            }
+            let me: MeLogin = try await APIClient.shared.request(Endpoint(path: "/v2/me"), as: MeLogin.self)
+            setCurrentUserLogin(me.login)
+            ProfileStore.shared.start(for: me.login)
         } catch {}
     }
 
@@ -200,13 +210,10 @@ final class AuthService: NSObject, ObservableObject {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let token = json["access_token"] as? String,
-               let expiresIn = json["expires_in"] as? Double {
-                accessToken = token
-                tokenExpiration = Date().addingTimeInterval(expiresIn)
-                if let newRefresh = json["refresh_token"] as? String { refreshToken = newRefresh }
-                isAuthenticated = true
+            if let tokens = try? JSONDecoder().decode(TokenResponse.self, from: data) {
+                updateTokens(tokens)
+            } else {
+                isAuthenticated = false
             }
         } catch {
             isAuthenticated = false

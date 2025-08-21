@@ -18,7 +18,7 @@ struct _2SwiftCompanionApp: App {
                 }
             }
             .onAppear { authService.checkAuthentication() }
-            .onChange(of: authService.isAuthenticated) { oldValue, newValue in
+            .onChange(of: authService.isAuthenticated) { _, newValue in
                 if newValue, !authService.currentLogin.isEmpty { profileStore.start(for: authService.currentLogin) }
                 if !newValue { profileStore.stop() }
             }
