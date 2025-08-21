@@ -1,6 +1,8 @@
 import SwiftUI
 import Charts
 
+private let projectsSectionMaxHeight: CGFloat = 420
+
 struct UserProfileView: View {
     @ObservedObject var loader: UserProfileLoader
 
@@ -325,7 +327,36 @@ struct LoadingListPlaceholder: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 6 : 10) {
             ForEach(0..<lines, id: \.self) { _ in
-                RoundedRectangle(cornerRadius: 8).fill(.gray.opacity(0.3)).frame(height: compact ? 10 : 14).redacted(reason: .placeholder)
+                ShimmerBar(height: compact ? 10 : 14)
+            }
+        }
+    }
+}
+
+private struct ShimmerBar: View {
+    let height: CGFloat
+    @State private var animate = false
+    var body: some View {
+        GeometryReader { geo in
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.25))
+                .overlay {
+                    Rectangle()
+                        .fill(LinearGradient(stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .white.opacity(0.7), location: 0.5),
+                            .init(color: .clear, location: 1)
+                        ], startPoint: .leading, endPoint: .trailing))
+                        .frame(width: geo.size.width * 0.45)
+                        .offset(x: animate ? geo.size.width : -geo.size.width)
+                        .blendMode(.plusLighter)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .frame(height: height)
+        .onAppear {
+            withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
+                animate = true
             }
         }
     }
@@ -389,8 +420,6 @@ private struct ProjectsPicker: View {
     }
 }
 
-private let projectsSectionMaxHeight: CGFloat = 420
-
 private struct ActiveProjectsListView: View {
     let profile: UserProfile
     @State private var selectedCursusId: Int
@@ -440,7 +469,7 @@ private struct ActiveProjectsListView: View {
             }
             .animation(.snappy, value: selectedCursusId)
             .sheet(item: $presented) { p in
-                ActiveProjectDetailSheet(project: p)
+                ProjectDetailSheet(header: header(for: p))
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -452,6 +481,12 @@ private struct ActiveProjectsListView: View {
         if let d = p.createdAt { arr.append(UserProfile.Formatters.shortDate.string(from: d)) }
         if let r = p.retry, r > 0 { arr.append("Tentative \(r)") }
         return arr
+    }
+
+    private func header(for p: UserProfile.ActiveProject) -> ProjectHeaderInfo {
+        let badges = [p.status, p.teamStatus].compactMap { $0 } + (p.retry.map { $0 > 0 ? ["Tentative \($0)"] : [] } ?? [])
+        let dateText = p.createdAt.map { UserProfile.Formatters.shortDate.string(from: $0) }
+        return ProjectHeaderInfo(icon: "hammer.fill", title: p.name, headerBadges: badges, dateText: dateText, slug: p.slug)
     }
 }
 
@@ -504,7 +539,7 @@ private struct FinishedProjectsListView: View {
             }
             .animation(.snappy, value: selectedCursusId)
             .sheet(item: $presented) { p in
-                FinishedProjectDetailSheet(project: p)
+                ProjectDetailSheet(header: header(for: p))
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -519,72 +554,59 @@ private struct FinishedProjectsListView: View {
         if let r = p.retry, r > 0 { arr.append("Tentative \(r)") }
         return arr
     }
-}
 
-private struct ActiveProjectDetailSheet: View {
-    let project: UserProfile.ActiveProject
-
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 12) {
-                    Image(systemName: "hammer.fill")
-                        .frame(width: 48, height: 48)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(project.name).font(.title3).bold()
-                        HStack(spacing: 8) {
-                            if let s = project.status { CapsuleBadge(text: s) }
-                            if let ts = project.teamStatus { CapsuleBadge(text: ts) }
-                            if let r = project.retry, r > 0 { CapsuleBadge(text: "Tentative \(r)") }
-                        }
-                    }
-                    Spacer()
-                }
-                Divider()
-                VStack(alignment: .leading, spacing: 10) {
-                    if let d = project.createdAt {
-                        HStack {
-                            Image(systemName: "calendar")
-                            Text(UserProfile.Formatters.shortDate.string(from: d)).font(.subheadline)
-                        }
-                    }
-                }
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Détails")
-            .navigationBarTitleDisplayMode(.inline)
-        }
+    private func header(for p: UserProfile.Project) -> ProjectHeaderInfo {
+        var badges: [String] = ["Note \(p.finalMark ?? 0)"]
+        if let v = p.validated { badges.append(v ? "Validé" : "Non validé") }
+        if let r = p.retry, r > 0 { badges.append("Tentative \(r)") }
+        let dateText = p.closedAt.map { UserProfile.Formatters.shortDate.string(from: $0) }
+        return ProjectHeaderInfo(icon: "checkmark.seal.fill", title: p.name, headerBadges: badges, dateText: dateText, slug: p.slug)
     }
 }
 
-private struct FinishedProjectDetailSheet: View {
-    let project: UserProfile.Project
+private struct ProjectHeaderInfo: Equatable {
+    let icon: String
+    let title: String
+    let headerBadges: [String]
+    let dateText: String?
+    let slug: String
+}
+
+private struct ProjectDetailSheet: View {
+    let header: ProjectHeaderInfo
+    @State private var details: ProjectDetails?
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 12) {
-                    Image(systemName: "checkmark.seal.fill")
+                    Image(systemName: header.icon)
                         .frame(width: 48, height: 48)
                         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(project.name).font(.title3).bold()
+                        Text(header.title).font(.title3).bold()
                         HStack(spacing: 8) {
-                            CapsuleBadge(text: "Note \(project.finalMark ?? 0)")
-                            if let v = project.validated { CapsuleBadge(text: v ? "Validé" : "Non validé") }
-                            if let r = project.retry, r > 0 { CapsuleBadge(text: "Tentative \(r)") }
+                            ForEach(header.headerBadges, id: \.self) { CapsuleBadge(text: $0) }
                         }
                     }
                     Spacer()
                 }
                 Divider()
                 VStack(alignment: .leading, spacing: 10) {
-                    if let d = project.closedAt {
+                    if let dateText = header.dateText {
                         HStack {
                             Image(systemName: "calendar")
-                            Text(UserProfile.Formatters.shortDate.string(from: d)).font(.subheadline)
+                            Text(dateText).font(.subheadline)
+                        }
+                    }
+                    if let desc = details?.description, !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(desc).font(.callout)
+                    }
+                    if let u = details?.url {
+                        HStack(spacing: 8) {
+                            Image(systemName: "link")
+                            Link("Ouvrir le projet", destination: u)
+                                .font(.subheadline)
                         }
                     }
                 }
@@ -593,6 +615,11 @@ private struct FinishedProjectDetailSheet: View {
             .padding()
             .navigationTitle("Détails")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                if details == nil {
+                    details = await ProjectDetailsRepository.shared.details(for: header.slug)
+                }
+            }
         }
     }
 }
@@ -627,17 +654,21 @@ private struct AchievementsListView: View {
     }
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 10) {
-            ForEach(groups) { g in
-                InfoPillRow(
-                    leading: .system(g.symbol),
-                    title: g.name,
-                    subtitle: "×\(g.count)",
-                    badges: [],
-                    onTap: { presented = g }
-                )
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 10) {
+                ForEach(groups) { g in
+                    InfoPillRow(
+                        leading: .system(g.symbol),
+                        title: g.name,
+                        subtitle: "×\(g.count)",
+                        badges: [],
+                        onTap: { presented = g }
+                    )
+                }
             }
         }
+        .frame(maxHeight: projectsSectionMaxHeight)
+        .scrollIndicators(.visible)
         .sheet(item: $presented) { g in
             AchievementGroupSheet(group: g)
                 .presentationDetents([.medium, .large])
