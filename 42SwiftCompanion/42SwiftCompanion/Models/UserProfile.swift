@@ -137,13 +137,12 @@ extension UserProfile {
     }
 
     var displayableActiveProjects: [String] {
-        activeProjects.map {
-            var s = "\($0.name) | Statut: \($0.status ?? "")"
-            if let ts = $0.teamStatus { s += " | Équipe: \(ts)" }
-            if $0.repoURL != nil { s += " | Dépôt: Oui" }
-            return s
-        }
-    }
+		activeProjects.map {
+			var s = "\($0.name) | Statut: \($0.status ?? "")"
+			if let ts = $0.teamStatus { s += " | Équipe: \(ts)" }
+			return s
+		}
+	}
 
     var displayableHost: [String] {
         guard let host = currentHost else { return [] }

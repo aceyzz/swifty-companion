@@ -6,7 +6,7 @@ struct UserProfileView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            LazyVStack(spacing: 24) {
                 LoadableSection(title: "Identité", state: loader.basicState) {
                     VStack(spacing: 8) {
                         Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16)).redacted(reason: .placeholder)
@@ -18,12 +18,8 @@ struct UserProfileView: View {
                     if let p = loader.profile {
                         VStack(spacing: 8) {
                             if let url = p.imageURL {
-                                AsyncImage(url: url) { image in
-                                    image.resizable().aspectRatio(contentMode: .fit)
-                                } placeholder: {
-                                    Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16))
-                                }
-                                .frame(width: 120, height: 120)
+                                RemoteImage(url: url, cornerRadius: 16)
+                                    .frame(width: 120, height: 120)
                             } else {
                                 Color.gray.frame(width: 120, height: 120).clipShape(RoundedRectangle(cornerRadius: 16)).redacted(reason: .placeholder)
                             }
@@ -101,8 +97,8 @@ struct UserProfileView: View {
                 } failed: {
                     RetryRow(title: "Impossible de charger les succès") { loader.retryBasic() }
                 } content: {
-                    if let p = loader.profile, !p.displayableAchievements.isEmpty {
-                        ProfileTextList(texts: p.displayableAchievements)
+                    if let p = loader.profile, !p.achievements.isEmpty {
+                        AchievementsListView(achievements: p.achievements)
                     } else {
                         EmptyRow(text: "Aucun succès")
                     }
@@ -113,10 +109,10 @@ struct UserProfileView: View {
                 } failed: {
                     RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
                 } content: {
-                    if let p = loader.profile, !p.displayableActiveProjects.isEmpty {
-                        ProfileTextList(texts: p.displayableActiveProjects)
+                    if let p = loader.profile {
+                        ActiveProjectsListView(profile: p)
                     } else {
-                        EmptyRow(text: "Aucun projet en cours")
+                        EmptyRow(text: "Aucune donnée")
                     }
                 }
 
@@ -125,10 +121,10 @@ struct UserProfileView: View {
                 } failed: {
                     RetryRow(title: "Impossible de charger les projets") { loader.retryProjects() }
                 } content: {
-                    if let p = loader.profile, !p.displayableFinishedProjects.isEmpty {
-                        ProfileTextList(texts: p.displayableFinishedProjects)
+                    if let p = loader.profile {
+                        FinishedProjectsListView(profile: p)
                     } else {
-                        EmptyRow(text: "Aucun projet terminé")
+                        EmptyRow(text: "Aucune donnée")
                     }
                 }
 
@@ -237,16 +233,8 @@ struct WeeklyLogCard: View {
     }
 
     private var totalHours: Double { sorted.reduce(0) { $0 + $1.hours } }
-
-    private var avgHours: Double {
-        guard !sorted.isEmpty else { return 0 }
-        return totalHours / Double(sorted.count)
-    }
-
-    private var yMax: Double {
-        let m = sorted.map(\.hours).max() ?? 0
-        return max(1, ceil(m + 0.5))
-    }
+    private var avgHours: Double { sorted.isEmpty ? 0 : totalHours / Double(sorted.count) }
+    private var yMax: Double { max(1, ceil((sorted.map(\.hours).max() ?? 0) + 0.5)) }
 
     private var xDomain: ClosedRange<Date> {
         let cal = Calendar.current
@@ -360,5 +348,340 @@ struct EmptyRow: View {
     let text: String
     var body: some View {
         Text(text).font(.subheadline).foregroundStyle(.secondary)
+    }
+}
+
+private struct CursusFilterModel: Equatable {
+    struct Option: Identifiable, Hashable {
+        let id: Int
+        let title: String
+    }
+
+    let options: [Option]
+    let defaultId: Int?
+
+    init(profile: UserProfile, restrictToIds: Set<Int>) {
+        let nameById = Dictionary(uniqueKeysWithValues: profile.cursus.map { ($0.id, $0.name ?? "Cursus \($0.id)") })
+        let present = profile.cursus.filter { restrictToIds.contains($0.id) }
+        let ordered = present.sorted { lhs, rhs in
+            let l = lhs.endAt ?? lhs.beginAt ?? .distantPast
+            let r = rhs.endAt ?? rhs.beginAt ?? .distantPast
+            return l > r
+        }
+        self.options = ordered.map { Option(id: $0.id, title: nameById[$0.id] ?? "Cursus \($0.id)") }
+        self.defaultId = options.first?.id
+    }
+}
+
+private struct ProjectsPicker: View {
+    let options: [CursusFilterModel.Option]
+    @Binding var selection: Int
+
+    var body: some View {
+        Picker("Cursus", selection: $selection) {
+            ForEach(options) { opt in
+                Text(opt.title).tag(opt.id)
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(.accentColor)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private let projectsSectionMaxHeight: CGFloat = 420
+
+private struct ActiveProjectsListView: View {
+    let profile: UserProfile
+    @State private var selectedCursusId: Int
+    @State private var presented: UserProfile.ActiveProject?
+    private let filter: CursusFilterModel
+
+    init(profile: UserProfile) {
+        self.profile = profile
+        let ids = Set(profile.activeProjects.compactMap { $0.cursusId })
+        let f = CursusFilterModel(profile: profile, restrictToIds: ids)
+        self.filter = f
+        _selectedCursusId = State(initialValue: f.defaultId ?? ids.sorted().first ?? 0)
+    }
+
+    private var itemsSorted: [UserProfile.ActiveProject] {
+        profile.activeProjects
+            .filter { $0.cursusId == selectedCursusId }
+            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+    }
+
+    var body: some View {
+        if filter.options.isEmpty {
+            EmptyRow(text: "Aucun projet en cours")
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                ProjectsPicker(options: filter.options, selection: $selectedCursusId)
+                if itemsSorted.isEmpty {
+                    EmptyRow(text: "Aucun projet pour ce cursus")
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            ForEach(itemsSorted) { p in
+                                InfoPillRow(
+                                    leading: .system("hammer.fill"),
+                                    title: p.name,
+                                    subtitle: [p.status, p.teamStatus].compactMap { $0 }.joined(separator: " • "),
+                                    badges: badgeTexts(for: p),
+                                    onTap: { presented = p }
+                                )
+                            }
+                        }
+                        .padding(.trailing, 2)
+                    }
+                    .frame(maxHeight: projectsSectionMaxHeight)
+                    .scrollIndicators(.visible)
+                }
+            }
+            .animation(.snappy, value: selectedCursusId)
+            .sheet(item: $presented) { p in
+                ActiveProjectDetailSheet(project: p)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
+    private func badgeTexts(for p: UserProfile.ActiveProject) -> [String] {
+        var arr: [String] = []
+        if let d = p.createdAt { arr.append(UserProfile.Formatters.shortDate.string(from: d)) }
+        if let r = p.retry, r > 0 { arr.append("Tentative \(r)") }
+        return arr
+    }
+}
+
+private struct FinishedProjectsListView: View {
+    let profile: UserProfile
+    @State private var selectedCursusId: Int
+    @State private var presented: UserProfile.Project?
+    private let filter: CursusFilterModel
+
+    init(profile: UserProfile) {
+        self.profile = profile
+        let ids = Set(profile.finishedProjects.compactMap { $0.cursusId })
+        let f = CursusFilterModel(profile: profile, restrictToIds: ids)
+        self.filter = f
+        _selectedCursusId = State(initialValue: f.defaultId ?? ids.sorted().first ?? 0)
+    }
+
+    private var itemsSorted: [UserProfile.Project] {
+        profile.finishedProjects
+            .filter { $0.cursusId == selectedCursusId }
+            .sorted { ($0.closedAt ?? .distantPast) > ($1.closedAt ?? .distantPast) }
+    }
+
+    var body: some View {
+        if filter.options.isEmpty {
+            EmptyRow(text: "Aucun projet terminé")
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                ProjectsPicker(options: filter.options, selection: $selectedCursusId)
+                if itemsSorted.isEmpty {
+                    EmptyRow(text: "Aucun projet pour ce cursus")
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            ForEach(itemsSorted) { p in
+                                InfoPillRow(
+                                    leading: .system("checkmark.seal.fill"),
+                                    title: p.name,
+                                    subtitle: nil,
+                                    badges: badgeTexts(for: p),
+                                    onTap: { presented = p }
+                                )
+                            }
+                        }
+                        .padding(.trailing, 2)
+                    }
+                    .frame(maxHeight: projectsSectionMaxHeight)
+                    .scrollIndicators(.visible)
+                }
+            }
+            .animation(.snappy, value: selectedCursusId)
+            .sheet(item: $presented) { p in
+                FinishedProjectDetailSheet(project: p)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
+    private func badgeTexts(for p: UserProfile.Project) -> [String] {
+        var arr: [String] = []
+        arr.append("Note \(p.finalMark ?? 0)")
+        if let v = p.validated { arr.append(v ? "Validé" : "Non validé") }
+        if let d = p.closedAt { arr.append(UserProfile.Formatters.shortDate.string(from: d)) }
+        if let r = p.retry, r > 0 { arr.append("Tentative \(r)") }
+        return arr
+    }
+}
+
+private struct ActiveProjectDetailSheet: View {
+    let project: UserProfile.ActiveProject
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    Image(systemName: "hammer.fill")
+                        .frame(width: 48, height: 48)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(project.name).font(.title3).bold()
+                        HStack(spacing: 8) {
+                            if let s = project.status { CapsuleBadge(text: s) }
+                            if let ts = project.teamStatus { CapsuleBadge(text: ts) }
+                            if let r = project.retry, r > 0 { CapsuleBadge(text: "Tentative \(r)") }
+                        }
+                    }
+                    Spacer()
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    if let d = project.createdAt {
+                        HStack {
+                            Image(systemName: "calendar")
+                            Text(UserProfile.Formatters.shortDate.string(from: d)).font(.subheadline)
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Détails")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private struct FinishedProjectDetailSheet: View {
+    let project: UserProfile.Project
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .frame(width: 48, height: 48)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(project.name).font(.title3).bold()
+                        HStack(spacing: 8) {
+                            CapsuleBadge(text: "Note \(project.finalMark ?? 0)")
+                            if let v = project.validated { CapsuleBadge(text: v ? "Validé" : "Non validé") }
+                            if let r = project.retry, r > 0 { CapsuleBadge(text: "Tentative \(r)") }
+                        }
+                    }
+                    Spacer()
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    if let d = project.closedAt {
+                        HStack {
+                            Image(systemName: "calendar")
+                            Text(UserProfile.Formatters.shortDate.string(from: d)).font(.subheadline)
+                        }
+                    }
+                }
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Détails")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private struct AchievementsListView: View {
+    struct Group: Identifiable, Equatable {
+        let id: String
+        let name: String
+        let symbol: String
+        let count: Int
+        let variants: [UserProfile.Achievement]
+        static func == (lhs: Group, rhs: Group) -> Bool { lhs.id == rhs.id }
+    }
+
+    let achievements: [UserProfile.Achievement]
+    @State private var presented: Group?
+
+    private var groups: [Group] {
+        let map = Dictionary(grouping: achievements, by: { $0.name })
+        return map.values.map { arr in
+            let name = arr.first?.name ?? UUID().uuidString
+            let symbol = AchievementIconProvider.symbol(for: name, description: arr.first?.description)
+            let variants = arr.sorted {
+                let a = $0.count ?? 1
+                let b = $1.count ?? 1
+                if a == b { return $0.id < $1.id }
+                return a > b
+            }
+            return Group(id: name, name: name, symbol: symbol, count: arr.count, variants: variants)
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 10) {
+            ForEach(groups) { g in
+                InfoPillRow(
+                    leading: .system(g.symbol),
+                    title: g.name,
+                    subtitle: "×\(g.count)",
+                    badges: [],
+                    onTap: { presented = g }
+                )
+            }
+        }
+        .sheet(item: $presented) { g in
+            AchievementGroupSheet(group: g)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+private struct AchievementGroupSheet: View {
+    let group: AchievementsListView.Group
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    Image(systemName: group.symbol)
+                        .frame(width: 48, height: 48)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(group.name).font(.title3).bold()
+                        Text("Total ×\(group.count)").font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                Divider()
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(group.variants) { a in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "trophy.fill")
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(a.name).font(.subheadline)
+                                Text(a.description).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.accentColor.opacity(0.06)))
+                    }
+                }
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Détails")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }

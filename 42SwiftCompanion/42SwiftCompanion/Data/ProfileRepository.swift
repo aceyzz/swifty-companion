@@ -57,7 +57,7 @@ final class ProfileRepository {
         }.compactMap { p in
             guard let name = p.project.name, let slug = p.project.slug else { return nil }
             return UserProfile.Project(id: slug, name: name, slug: slug, finalMark: p.final_mark, validated: p.validated, closedAt: DateParser.iso(p.closed_at ?? p.marked_at), retry: p.occurrence, cursusId: p.cursus_ids.first, createdAt: DateParser.iso(p.created_at))
-        }.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+        }.sorted { ($0.closedAt ?? .distantPast) > ($1.closedAt ?? .distantPast) }
 
         let active: [UserProfile.ActiveProject] = projects.filter {
             $0.final_mark == nil && $0.current_team_id != nil && ($0.teams?.isEmpty == false)
