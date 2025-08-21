@@ -98,7 +98,7 @@ final class ProfileRepository {
 
         let finished: [UserProfile.Project] = normalized
             .filter { n in
-                if let mark = n.finalMark { return true }
+                // if let mark = n.finalMark { return true }
                 if let st = n.status, ["finished", "waiting_for_correction"].contains(st.lowercased()), n.endAt != nil { return true }
                 return false
             }

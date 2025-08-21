@@ -44,7 +44,7 @@ struct UserProfileView: View {
                                     VStack(alignment: .leading, spacing: 8) {
                                         ProfileTextList(texts: p.displayableContact, font: .caption)
                                         if let lang = loader.profile?.campusLanguage, !lang.isEmpty {
-                                            ProfileTextList(texts: ["Langue du campus: \(lang)"], font: .caption2)
+                                            ProfileTextList(texts: ["Langue parlée: \(lang)"], font: .caption2)
                                         }
                                     }
                                 } else {
@@ -82,15 +82,30 @@ struct UserProfileView: View {
                     }
                 }
 
-                LoadableSection(title: "Points", state: loader.basicState) {
-                    LoadingListPlaceholder(lines: 1, compact: true)
-                } failed: {
-                    RetryRow(title: "Impossible de charger les points") { loader.retryBasic() }
-                } content: {
-                    if let p = loader.profile {
-                        ProfileTextList(texts: ["Wallet: \(p.wallet) | Points: \(p.correctionPoint)"], font: .subheadline)
-                    }
-                }
+				LoadableSection(title: "Points et coalitions", state: loader.basicState) {
+					LoadingListPlaceholder(lines: 3, compact: true)
+				} failed: {
+					RetryRow(title: "Impossible de charger les points ou coalitions") { loader.retryBasic(); loader.retryCoalitions() }
+				} content: {
+					if let p = loader.profile {
+						VStack(alignment: .leading, spacing: 12) {
+							HStack(spacing: 16) {
+								StatPill(title: "Wallet", value: "\(p.wallet)")
+								StatPill(title: "Points", value: "\(p.correctionPoint)")
+								Spacer()
+							}
+							if !p.displayableCoalitions.isEmpty {
+								VStack(alignment: .leading, spacing: 6) {
+									ForEach(p.displayableCoalitions, id: \.self) { coalition in
+										Text(coalition).font(.subheadline)
+									}
+								}
+							} else {
+								EmptyRow(text: "Aucune coalition")
+							}
+						}
+					}
+				}
 
                 LoadableSection(title: "Log time", state: loader.logState) {
                     LoadingListPlaceholder(lines: 1, compact: true)
@@ -98,18 +113,6 @@ struct UserProfileView: View {
                     RetryRow(title: "Impossible de charger le log time") { loader.retryLog() }
                 } content: {
                     WeeklyLogCard(logs: loader.weeklyLog)
-                }
-
-                LoadableSection(title: "Coalitions", state: loader.coalitionsState) {
-                    LoadingListPlaceholder(lines: 2, compact: true)
-                } failed: {
-                    RetryRow(title: "Impossible de charger les coalitions") { loader.retryCoalitions() }
-                } content: {
-                    if let p = loader.profile, !p.displayableCoalitions.isEmpty {
-                        ProfileTextList(texts: p.displayableCoalitions)
-                    } else {
-                        EmptyRow(text: "Aucune coalition")
-                    }
                 }
 
                 if let p = loader.profile {
@@ -278,14 +281,15 @@ struct WeeklyLogCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 8)
+
             Chart(series) { item in
-                BarMark(x: .value("Date", item.date, unit: .day), y: .value("Heures", item.hours))
-                    .cornerRadius(8)
-                    .foregroundStyle(Color.accentColor)
-                    .opacity(item.hours > 0 ? 1 : 0.35)
-                if item.hours > 0 {
-                    PointMark(x: .value("Date", item.date, unit: .day), y: .value("Heures", item.hours))
-                }
+                BarMark(
+                    x: .value("Date", item.date, unit: .day),
+                    y: .value("Heures", item.hours)
+                )
+                .cornerRadius(8)
+                .foregroundStyle(Color.accentColor)
+                .opacity(item.hours > 0 ? 1 : 0.35)
             }
             .chartXScale(domain: xDomain)
             .chartYScale(domain: 0...yMax)
@@ -314,6 +318,7 @@ struct WeeklyLogCard: View {
                     }
                 }
             }
+
             HStack(spacing: 10) {
                 StatPill(title: "Total", value: formattedHours(totalHours))
                 StatPill(title: "Moyenne", value: formattedHours(avgHours))
@@ -439,7 +444,7 @@ private struct UnifiedItemsSection: View {
     let maxHeight: CGFloat?
 
     @State private var presented: ProfileItem?
-    @State private var selectedId: Int = 0
+    @State private var selectedId: Int?
 
     var body: some View {
         SectionCard(title: title) {
@@ -456,8 +461,12 @@ private struct UnifiedItemsSection: View {
                     if g.options.isEmpty {
                         EmptyRow(text: emptyText)
                     } else {
+                        let safeSelection = Binding<Int>(
+                            get: { selectedId ?? g.defaultId },
+                            set: { selectedId = $0 }
+                        )
                         VStack(alignment: .leading, spacing: 12) {
-                            Picker("Cursus", selection: $selectedId) {
+                            Picker("Cursus", selection: safeSelection) {
                                 ForEach(g.options.keys.sorted(), id: \.self) { key in
                                     Text(g.options[key] ?? "Cursus \(key)").tag(key)
                                 }
@@ -465,10 +474,12 @@ private struct UnifiedItemsSection: View {
                             .pickerStyle(.menu)
                             .tint(.accentColor)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            let items = g.itemsById[selectedId] ?? []
+
+                            let effective = selectedId ?? g.defaultId
+                            let items = g.itemsById[effective] ?? []
                             itemsView(items: items)
                         }
-                        .onAppear { if selectedId == 0 { selectedId = g.defaultId } }
+                        .onAppear { if selectedId == nil { selectedId = g.defaultId } }
                         .animation(.snappy, value: selectedId)
                     }
                 }
