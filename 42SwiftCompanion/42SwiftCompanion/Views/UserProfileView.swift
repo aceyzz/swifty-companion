@@ -70,10 +70,10 @@ struct UserProfileView: View {
 
                 if let p = loader.profile {
                     UnifiedItemsSection(
-                        title: "Succès",
+                        title: "Achievements",
                         state: loader.basicState,
                         source: .flat(ItemsBuilder.achievements(from: p)),
-                        emptyText: "Aucun succès",
+                        emptyText: "Aucun Achievements",
                         maxHeight: achievementsSectionMaxHeight
                     )
 
@@ -93,12 +93,12 @@ struct UserProfileView: View {
                         maxHeight: finishedProjectsSectionMaxHeight
                     )
                 } else {
-                    LoadableSection(title: "Succès", state: loader.basicState) {
+                    LoadableSection(title: "Achievements", state: loader.basicState) {
                         LoadingListPlaceholder(lines: 2, compact: true)
                     } failed: {
                         EmptyRow(text: "Erreur")
                     } content: {
-                        ContentUnavailableView("Aucun succès", systemImage: "trophy")
+                        ContentUnavailableView("Aucun Achievements", systemImage: "trophy")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
