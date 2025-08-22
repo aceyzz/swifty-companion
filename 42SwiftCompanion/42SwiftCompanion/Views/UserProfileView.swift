@@ -11,24 +11,31 @@ struct UserProfileView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 24) {
-                LoadableSection(title: "Identité", state: loader.basicState) {
-                    IdentitySkeleton()
-                } failed: {
-                    RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
-                } content: {
-                    if let p = loader.profile {
-                        IdentityCard(profile: p)
-                    } else {
-                        IdentitySkeleton()
-                    }
-                }
+				LoadableSection(title: "Identité", state: loader.basicState) {
+					IdentitySkeleton()
+				} failed: {
+					RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
+				} content: {
+					if let p = loader.profile {
+						VStack(alignment: .leading, spacing: 16) {
+							IdentityCard(profile: p)
+							HStack(spacing: 12) {
+								MetricCapsule(title: "Wallet", systemImage: "creditcard.fill", value: "\(p.wallet)")
+								MetricCapsule(title: "Points d'évaluations", systemImage: "scalemass.fill", value: "\(p.correctionPoint)")
+								Spacer()
+							}
+						}
+					} else {
+						IdentitySkeleton()
+					}
+				}
 
-                LoadableSection(title: "Statut et cursus", state: loader.basicState) {
+                LoadableSection(title: "A propos", state: loader.basicState) {
                     LoadingListPlaceholder(lines: 2, compact: true)
                 } failed: {
                     RetryRow(title: "Impossible de charger le statut") { loader.retryBasic() }
                 } content: {
-                    if let p = loader.profile, !(p.displayableStatus.isEmpty && p.displayableCursus.isEmpty) {
+                    if let p = loader.profile, !(p.displayableStatus.isEmpty && p.cursus.isEmpty) {
                         StatusCursusCard(profile: p)
                     } else {
                         ContentUnavailableView("Aucune information", systemImage: "info.circle")
@@ -36,23 +43,22 @@ struct UserProfileView: View {
                     }
                 }
 
-                LoadableSection(
-                    title: "Points et coalitions",
-                    state: mergedState(loader.basicState, loader.coalitionsState)
-                ) {
-                    LoadingListPlaceholder(lines: 3, compact: true)
-                } failed: {
-                    RetryRow(title: "Impossible de charger les points ou coalitions") {
-                        loader.retryBasic()
-                        loader.retryCoalitions()
-                    }
-                } content: {
-                    if let p = loader.profile {
-                        PointsCoalitionsCard(profile: p)
-                    } else {
-                        LoadingListPlaceholder(lines: 3, compact: true)
-                    }
-                }
+				LoadableSection(
+					title: "Coalitions",
+					state: loader.coalitionsState
+				) {
+					LoadingListPlaceholder(lines: 2, compact: true)
+				} failed: {
+					RetryRow(title: "Impossible de charger les coalitions") {
+						loader.retryCoalitions()
+					}
+				} content: {
+					if let p = loader.profile {
+						CoalitionsCard(profile: p)
+					} else {
+						LoadingListPlaceholder(lines: 2, compact: true)
+					}
+				}
 
                 LoadableSection(title: "Log time", state: loader.logState) {
                     LoadingListPlaceholder(lines: 1, compact: true)
@@ -64,15 +70,15 @@ struct UserProfileView: View {
 
                 if let p = loader.profile {
                     UnifiedItemsSection(
-                        title: "Succès",
+                        title: "Achievements",
                         state: loader.basicState,
                         source: .flat(ItemsBuilder.achievements(from: p)),
-                        emptyText: "Aucun succès",
+                        emptyText: "Aucun achievement",
                         maxHeight: achievementsSectionMaxHeight
                     )
 
                     UnifiedItemsSection(
-                        title: "Projets en cours",
+                        title: "En cours",
                         state: loader.projectsState,
                         source: .grouped(ItemsBuilder.activeProjectsGrouped(from: p)),
                         emptyText: "Aucun projet pour ce cursus",
@@ -87,16 +93,16 @@ struct UserProfileView: View {
                         maxHeight: finishedProjectsSectionMaxHeight
                     )
                 } else {
-                    LoadableSection(title: "Succès", state: loader.basicState) {
+                    LoadableSection(title: "Achievements", state: loader.basicState) {
                         LoadingListPlaceholder(lines: 2, compact: true)
                     } failed: {
                         EmptyRow(text: "Erreur")
                     } content: {
-                        ContentUnavailableView("Aucun succès", systemImage: "trophy")
+                        ContentUnavailableView("Aucun achievement", systemImage: "trophy")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    LoadableSection(title: "Projets en cours", state: loader.projectsState) {
+                    LoadableSection(title: "En cours", state: loader.projectsState) {
                         LoadingListPlaceholder(lines: 2)
                     } failed: {
                         EmptyRow(text: "Erreur")
@@ -135,53 +141,61 @@ struct UserProfileView: View {
 }
 
 private struct IdentityCard: View {
-    let profile: UserProfile
+	let profile: UserProfile
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 16) {
-                Avatar(url: profile.imageURL)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(profile.displayName).font(.title3.weight(.semibold))
-                    Text(profile.userNameWithTitle == profile.login ? profile.login : (profile.userNameWithTitle ?? profile.login))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text(profile.displayableHostOrNA)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            if !profile.displayableContact.isEmpty || !(profile.campusLanguage ?? "").isEmpty {
-                VStack(spacing: 10) {
-                    ForEach(profile.displayableContact, id: \.self) { line in
-                        LabeledContent {
-                            Text(line).font(.subheadline)
-                        } label: {
-                            Image(systemName: iconForContact(line)).frame(width: 18)
-                        }
-                    }
-                    if let lang = profile.campusLanguage, !lang.isEmpty {
-                        LabeledContent {
-                            Text(lang).font(.subheadline)
-                        } label: {
-                            Image(systemName: "globe").frame(width: 18)
-                        }
-                    }
-                }
-            } else {
-                ContentUnavailableView("Aucune information", systemImage: "info.circle")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
+	var body: some View {
+		VStack(alignment: .leading, spacing: 16) {
+			HStack(alignment: .top, spacing: 16) {
+				Avatar(url: profile.imageURL)
+				VStack(alignment: .leading, spacing: 8) {
+					Text(profile.displayName).font(.title3.weight(.semibold))
+					Text(profile.userNameWithTitle == profile.login ? profile.login : (profile.userNameWithTitle ?? profile.login))
+						.font(.footnote)
+						.foregroundStyle(.secondary)
+					Text(profile.displayableHostOrNA)
+						.font(.footnote)
+						.foregroundStyle(.secondary)
+				}
+				Spacer()
+			}
+			if !profile.displayableContact.isEmpty || !(profile.campusLanguage ?? "").isEmpty {
+				VStack(spacing: 10) {
+					ForEach(profile.displayableContact, id: \.self) { line in
+						LabeledContent {
+							if line.contains("@") {
+								if let url = URL(string: "mailto:\(line)") {
+									Link(line, destination: url).font(.subheadline)
+								} else {
+									Text(line).font(.subheadline)
+								}
+							} else {
+								Text(line).font(.subheadline)
+							}
+						} label: {
+							Image(systemName: iconForContact(line)).frame(width: 18)
+						}
+					}
+					if let lang = profile.campusLanguage, !lang.isEmpty {
+						LabeledContent {
+							Text(lang).font(.subheadline)
+						} label: {
+							Image(systemName: "globe").frame(width: 18)
+						}
+					}
+				}
+			} else {
+				ContentUnavailableView("Aucune information", systemImage: "info.circle")
+					.frame(maxWidth: .infinity, alignment: .leading)
+			}
+		}
+	}
 
-    private func iconForContact(_ s: String) -> String {
-        if s.contains("@") { return "envelope" }
-        if s.contains("—") || s.contains("(") { return "building.2" }
-        if CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: s.filter { $0.isNumber })) { return "phone" }
-        return "person"
-    }
+	private func iconForContact(_ s: String) -> String {
+		if s.contains("@") { return "envelope" }
+		if s.contains("—") || s.contains("(") { return "building.2" }
+		if CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: s.filter { $0.isNumber })) { return "phone" }
+		return "person"
+	}
 }
 
 private struct IdentitySkeleton: View {
@@ -212,8 +226,69 @@ private struct Avatar: View {
     }
 }
 
+private struct FilterChip: View {
+    let text: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(.caption)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.accentColor.opacity(0.08))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(isSelected ? Color.accentColor.opacity(0.45) : Color.accentColor.opacity(0.2), lineWidth: isSelected ? 1.5 : 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct BigStatTile: View {
+    let title: String
+    let value: String
+    let systemImage: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                Text(title).font(.caption2).foregroundStyle(.secondary)
+            }
+            Text(value).font(.title3.weight(.semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.accentColor.opacity(0.18), lineWidth: 1))
+    }
+}
+
 private struct StatusCursusCard: View {
     let profile: UserProfile
+    @State private var selectedCursusId: Int?
+
+    private var orderedCursus: [UserProfile.Cursus] {
+        profile.cursus.sorted {
+            let l = $0.endAt ?? $0.beginAt ?? .distantPast
+            let r = $1.endAt ?? $1.beginAt ?? .distantPast
+            return l > r
+        }
+    }
+
+    private var selected: UserProfile.Cursus? {
+        if let id = selectedCursusId { return orderedCursus.first(where: { $0.id == id }) }
+        return orderedCursus.first
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -225,19 +300,62 @@ private struct StatusCursusCard: View {
                     }
                 }
             }
-            if !profile.displayableCursus.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(profile.displayableCursus, id: \.self) { c in
-                        Label(c, systemImage: "graduationcap.fill")
-                            .font(.subheadline)
+
+            if !orderedCursus.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(orderedCursus, id: \.id) { c in
+                                FilterChip(
+                                    text: c.name ?? "Cursus \(c.id)",
+                                    isSelected: (selectedCursusId ?? orderedCursus.first?.id) == c.id,
+                                    action: { selectedCursusId = c.id }
+                                )
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+
+                    if let c = selected {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "graduationcap.fill")
+                                Text(title(for: c)).font(.subheadline)
+                                Spacer()
+                            }
+                            if let level = c.level {
+                                let fractional = max(0, min(1, level.truncatingRemainder(dividingBy: 1)))
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Niveau \(level.formatted(.number.precision(.fractionLength(2))))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    ProgressView(value: fractional)
+                                        .progressViewStyle(.linear)
+                                        .tint(.accentColor)
+                                }
+                            } else {
+                                Text("Niveau indisponible").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
+                .onAppear {
+                    if selectedCursusId == nil { selectedCursusId = orderedCursus.first?.id }
+                }
+                .animation(.snappy, value: selectedCursusId)
             }
-            if profile.displayableStatus.isEmpty && profile.displayableCursus.isEmpty {
+
+            if profile.displayableStatus.isEmpty && orderedCursus.isEmpty {
                 ContentUnavailableView("Aucune information", systemImage: "info.circle")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    private func title(for c: UserProfile.Cursus) -> String {
+        var s = c.name ?? "Cursus"
+        if let grade = c.grade, !grade.isEmpty { s += " — \(grade)" }
+        return s
     }
 
     private func iconForStatus(_ s: String) -> String {
@@ -247,23 +365,54 @@ private struct StatusCursusCard: View {
     }
 }
 
-private struct PointsCoalitionsCard: View {
+private struct CoalitionsCard: View {
     let profile: UserProfile
+    @State private var selectedCoalitionId: Int?
+
+    private var orderedCoalitions: [UserProfile.Coalition] {
+        profile.coalitions.sorted { ($0.score ?? 0) > ($1.score ?? 0) }
+    }
+
+    private var selected: UserProfile.Coalition? {
+        if let id = selectedCoalitionId { return orderedCoalitions.first(where: { $0.id == id }) }
+        return orderedCoalitions.first
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                MetricCapsule(title: "Wallet", systemImage: "creditcard.fill", value: "\(profile.wallet)")
-                MetricCapsule(title: "Points", systemImage: "scalemass.fill", value: "\(profile.correctionPoint)")
-                Spacer()
-            }
-            if !profile.displayableCoalitions.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(profile.displayableCoalitions, id: \.self) { line in
-                        Label(line, systemImage: "flag.2.crossed.fill")
-                            .font(.subheadline)
+            if !orderedCoalitions.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(orderedCoalitions, id: \.id) { c in
+                                FilterChip(
+                                    text: c.name,
+                                    isSelected: (selectedCoalitionId ?? orderedCoalitions.first?.id) == c.id,
+                                    action: { selectedCoalitionId = c.id }
+                                )
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+
+                    if let c = selected {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "flag.2.crossed.fill")
+                                Text(c.name).font(.subheadline.weight(.semibold))
+                                Spacer()
+                            }
+                            HStack(spacing: 10) {
+                                BigStatTile(title: "Score", value: "\(c.score ?? 0)", systemImage: "chart.line.uptrend.xyaxis")
+                                BigStatTile(title: "Rang", value: c.rank.map { "#\($0)" } ?? "—", systemImage: "crown.fill")
+                            }
+                        }
                     }
                 }
+                .onAppear {
+                    if selectedCoalitionId == nil { selectedCoalitionId = orderedCoalitions.first?.id }
+                }
+                .animation(.snappy, value: selectedCoalitionId)
             } else {
                 ContentUnavailableView("Aucune coalition", systemImage: "flag.slash")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -307,7 +456,7 @@ private struct LoadableSection<Content: View, Loading: View, Failed: View>: View
         self.title = title
         self.state = state
         self.loading = loading()
-        self.failed = failed()
+               self.failed = failed()
         self.content = content()
     }
 
@@ -605,19 +754,19 @@ private struct UnifiedItemsSection: View {
                         ContentUnavailableView(emptyText, systemImage: "tray")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
-                        let safeSelection = Binding<Int>(
-                            get: { selectedId ?? g.defaultId },
-                            set: { selectedId = $0 }
-                        )
                         VStack(alignment: .leading, spacing: 12) {
-                            Picker("Cursus", selection: safeSelection) {
-                                ForEach(g.options.keys.sorted(), id: \.self) { key in
-                                    Text(g.options[key] ?? "Cursus \(key)").tag(key)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(g.options.keys.sorted(), id: \.self) { key in
+                                        FilterChip(
+                                            text: g.options[key] ?? "Cursus \(key)",
+                                            isSelected: (selectedId ?? g.defaultId) == key,
+                                            action: { selectedId = key }
+                                        )
+                                    }
                                 }
+                                .padding(.vertical, 2)
                             }
-                            .pickerStyle(.menu)
-                            .tint(.accentColor)
-                            .frame(maxWidth: .infinity, alignment: .leading)
 
                             let effective = selectedId ?? g.defaultId
                             let items = g.itemsById[effective] ?? []
