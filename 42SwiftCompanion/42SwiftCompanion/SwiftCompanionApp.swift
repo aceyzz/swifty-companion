@@ -58,21 +58,3 @@ struct SearchView: View {
         Text("Recherche étudiant").font(.largeTitle).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
-struct SettingsView: View {
-    @EnvironmentObject var authService: AuthService
-    var body: some View {
-        VStack {
-            Text("Réglages").font(.largeTitle).frame(maxWidth: .infinity)
-            Spacer()
-            Button {
-                authService.logout()
-            } label: {
-                Text("Se déconnecter").font(.title2).padding().frame(maxWidth: .infinity).background(Color.red).foregroundColor(.white).cornerRadius(10)
-            }
-            .padding(.horizontal, 40)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
