@@ -11,26 +11,26 @@ struct UserProfileView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 24) {
-				LoadableSection(title: "Identité", state: loader.basicState) {
-					IdentitySkeleton()
-				} failed: {
-					RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
-				} content: {
-					if let p = loader.profile {
-						VStack(alignment: .leading, spacing: 16) {
-							IdentityCard(profile: p)
-							HStack(spacing: 12) {
-								MetricCapsule(title: "Wallet", systemImage: "creditcard.fill", value: "\(p.wallet)")
-								MetricCapsule(title: "Points d'évaluations", systemImage: "scalemass.fill", value: "\(p.correctionPoint)")
-								Spacer()
-							}
-						}
-					} else {
-						IdentitySkeleton()
-					}
-				}
+                LoadableSection(title: "Identité", state: loader.basicState) {
+                    IdentitySkeleton()
+                } failed: {
+                    RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
+                } content: {
+                    if let p = loader.profile {
+                        VStack(alignment: .leading, spacing: 16) {
+                            IdentityCard(profile: p)
+                            HStack(spacing: 12) {
+                                StatCard(style: .compact, title: "Wallet", value: "\(p.wallet)", systemImage: "creditcard.fill")
+                                StatCard(style: .compact, title: "Points d’évaluations", value: "\(p.correctionPoint)", systemImage: "scalemass.fill")
+                                Spacer()
+                            }
+                        }
+                    } else {
+                        IdentitySkeleton()
+                    }
+                }
 
-                LoadableSection(title: "A propos", state: loader.basicState) {
+                LoadableSection(title: "À propos", state: loader.basicState) {
                     LoadingListPlaceholder(lines: 2, compact: true)
                 } failed: {
                     RetryRow(title: "Impossible de charger le statut") { loader.retryBasic() }
@@ -43,22 +43,22 @@ struct UserProfileView: View {
                     }
                 }
 
-				LoadableSection(
-					title: "Coalitions",
-					state: loader.coalitionsState
-				) {
-					LoadingListPlaceholder(lines: 2, compact: true)
-				} failed: {
-					RetryRow(title: "Impossible de charger les coalitions") {
-						loader.retryCoalitions()
-					}
-				} content: {
-					if let p = loader.profile {
-						CoalitionsCard(profile: p)
-					} else {
-						LoadingListPlaceholder(lines: 2, compact: true)
-					}
-				}
+                LoadableSection(
+                    title: "Coalitions",
+                    state: loader.coalitionsState
+                ) {
+                    LoadingListPlaceholder(lines: 2, compact: true)
+                } failed: {
+                    RetryRow(title: "Impossible de charger les coalitions") {
+                        loader.retryCoalitions()
+                    }
+                } content: {
+                    if let p = loader.profile {
+                        CoalitionsCard(profile: p)
+                    } else {
+                        LoadingListPlaceholder(lines: 2, compact: true)
+                    }
+                }
 
                 LoadableSection(title: "Log time", state: loader.logState) {
                     LoadingListPlaceholder(lines: 1, compact: true)
@@ -70,10 +70,10 @@ struct UserProfileView: View {
 
                 if let p = loader.profile {
                     UnifiedItemsSection(
-                        title: "Achievements",
+                        title: "Succès",
                         state: loader.basicState,
                         source: .flat(ItemsBuilder.achievements(from: p)),
-                        emptyText: "Aucun achievement",
+                        emptyText: "Aucun succès",
                         maxHeight: achievementsSectionMaxHeight
                     )
 
@@ -93,12 +93,12 @@ struct UserProfileView: View {
                         maxHeight: finishedProjectsSectionMaxHeight
                     )
                 } else {
-                    LoadableSection(title: "Achievements", state: loader.basicState) {
+                    LoadableSection(title: "Succès", state: loader.basicState) {
                         LoadingListPlaceholder(lines: 2, compact: true)
                     } failed: {
                         EmptyRow(text: "Erreur")
                     } content: {
-                        ContentUnavailableView("Aucun achievement", systemImage: "trophy")
+                        ContentUnavailableView("Aucun succès", systemImage: "trophy")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
@@ -132,70 +132,65 @@ struct UserProfileView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private func mergedState(_ a: UserProfileLoader.SectionLoadState, _ b: UserProfileLoader.SectionLoadState) -> UserProfileLoader.SectionLoadState {
-        if a == .failed || b == .failed { return .failed }
-        if a == .loading || b == .loading || a == .idle || b == .idle { return .loading }
-        return .loaded
-    }
 }
 
 private struct IdentityCard: View {
-	let profile: UserProfile
+    let profile: UserProfile
 
-	var body: some View {
-		VStack(alignment: .leading, spacing: 16) {
-			HStack(alignment: .top, spacing: 16) {
-				Avatar(url: profile.imageURL)
-				VStack(alignment: .leading, spacing: 8) {
-					Text(profile.displayName).font(.title3.weight(.semibold))
-					Text(profile.userNameWithTitle == profile.login ? profile.login : (profile.userNameWithTitle ?? profile.login))
-						.font(.footnote)
-						.foregroundStyle(.secondary)
-					Text(profile.displayableHostOrNA)
-						.font(.footnote)
-						.foregroundStyle(.secondary)
-				}
-				Spacer()
-			}
-			if !profile.displayableContact.isEmpty || !(profile.campusLanguage ?? "").isEmpty {
-				VStack(spacing: 10) {
-					ForEach(profile.displayableContact, id: \.self) { line in
-						LabeledContent {
-							if line.contains("@") {
-								if let url = URL(string: "mailto:\(line)") {
-									Link(line, destination: url).font(.subheadline)
-								} else {
-									Text(line).font(.subheadline)
-								}
-							} else {
-								Text(line).font(.subheadline)
-							}
-						} label: {
-							Image(systemName: iconForContact(line)).frame(width: 18)
-						}
-					}
-					if let lang = profile.campusLanguage, !lang.isEmpty {
-						LabeledContent {
-							Text(lang).font(.subheadline)
-						} label: {
-							Image(systemName: "globe").frame(width: 18)
-						}
-					}
-				}
-			} else {
-				ContentUnavailableView("Aucune information", systemImage: "info.circle")
-					.frame(maxWidth: .infinity, alignment: .leading)
-			}
-		}
-	}
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 16) {
+                Avatar(url: profile.imageURL)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(profile.displayName).font(.title3.weight(.semibold))
+                    Text(profile.userNameWithTitle == profile.login ? profile.login : (profile.userNameWithTitle ?? profile.login))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(profile.displayableHostOrNA)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            if !profile.displayableContact.isEmpty || !(profile.campusLanguage ?? "").isEmpty {
+                VStack(spacing: 10) {
+                    ForEach(profile.displayableContact, id: \.self) { line in
+                        LabeledContent {
+                            if line.contains("@") {
+                                let encoded = line.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? line
+                                if let url = URL(string: "mailto:\(encoded)") {
+                                    Link(line, destination: url).font(.subheadline)
+                                } else {
+                                    Text(line).font(.subheadline)
+                                }
+                            } else {
+                                Text(line).font(.subheadline)
+                            }
+                        } label: {
+                            Image(systemName: iconForContact(line)).frame(width: 18)
+                        }
+                    }
+                    if let lang = profile.campusLanguage, !lang.isEmpty {
+                        LabeledContent {
+                            Text(lang).font(.subheadline)
+                        } label: {
+                            Image(systemName: "globe").frame(width: 18)
+                        }
+                    }
+                }
+            } else {
+                ContentUnavailableView("Aucune information", systemImage: "info.circle")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
 
-	private func iconForContact(_ s: String) -> String {
-		if s.contains("@") { return "envelope" }
-		if s.contains("—") || s.contains("(") { return "building.2" }
-		if CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: s.filter { $0.isNumber })) { return "phone" }
-		return "person"
-	}
+    private func iconForContact(_ s: String) -> String {
+        if s.contains("@") { return "envelope" }
+        if s.contains("—") || s.contains("(") { return "building.2" }
+        if CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: s.filter { $0.isNumber })) { return "phone" }
+        return "person"
+    }
 }
 
 private struct IdentitySkeleton: View {
@@ -252,22 +247,60 @@ private struct FilterChip: View {
     }
 }
 
-private struct BigStatTile: View {
+private struct ChipsBar<Item: Identifiable>: View where Item.ID: Equatable {
+    let items: [Item]
+    @Binding var selection: Item.ID
+    let label: (Item) -> String
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(items) { item in
+                    let isSel = item.id == selection
+                    FilterChip(text: label(item), isSelected: isSel) {
+                        withAnimation(.snappy) { selection = item.id }
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+}
+
+private enum StatCardStyle { case compact, regular }
+
+private struct StatCard: View {
+    let style: StatCardStyle
     let title: String
     let value: String
     let systemImage: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: systemImage)
-                Text(title).font(.caption2).foregroundStyle(.secondary)
+        Group {
+            switch style {
+            case .compact:
+                HStack(spacing: 8) {
+                    Image(systemName: systemImage)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).font(.caption2).foregroundStyle(.secondary)
+                        Text(value).font(.callout.weight(.semibold))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            case .regular:
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: systemImage)
+                        Text(title).font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Text(value).font(.title3.weight(.semibold))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Text(value).font(.title3.weight(.semibold))
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.opacity(0.08)))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.accentColor.opacity(0.18), lineWidth: 1))
     }
@@ -303,18 +336,11 @@ private struct StatusCursusCard: View {
 
             if !orderedCursus.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(orderedCursus, id: \.id) { c in
-                                FilterChip(
-                                    text: c.name ?? "Cursus \(c.id)",
-                                    isSelected: (selectedCursusId ?? orderedCursus.first?.id) == c.id,
-                                    action: { selectedCursusId = c.id }
-                                )
-                            }
-                        }
-                        .padding(.vertical, 2)
-                    }
+                    let binding = Binding(
+                        get: { selectedCursusId ?? orderedCursus.first?.id ?? 0 },
+                        set: { selectedCursusId = $0 }
+                    )
+                    ChipsBar(items: orderedCursus, selection: binding) { $0.name ?? "Cursus \($0.id)" }
 
                     if let c = selected {
                         VStack(alignment: .leading, spacing: 10) {
@@ -324,12 +350,11 @@ private struct StatusCursusCard: View {
                                 Spacer()
                             }
                             if let level = c.level {
-                                let fractional = max(0, min(1, level.truncatingRemainder(dividingBy: 1)))
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Niveau \(level.formatted(.number.precision(.fractionLength(2))))")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    ProgressView(value: fractional)
+                                    ProgressView(value: levelFraction(level))
                                         .progressViewStyle(.linear)
                                         .tint(.accentColor)
                                 }
@@ -342,6 +367,11 @@ private struct StatusCursusCard: View {
                 .onAppear {
                     if selectedCursusId == nil { selectedCursusId = orderedCursus.first?.id }
                 }
+                .onChange(of: orderedCursus.map(\.id)) { _, ids in
+					if let sel = selectedCursusId, !ids.contains(sel) {
+						selectedCursusId = ids.first
+					}
+				}
                 .animation(.snappy, value: selectedCursusId)
             }
 
@@ -356,6 +386,11 @@ private struct StatusCursusCard: View {
         var s = c.name ?? "Cursus"
         if let grade = c.grade, !grade.isEmpty { s += " — \(grade)" }
         return s
+    }
+
+    private func levelFraction(_ level: Double) -> Double {
+        let f = level.truncatingRemainder(dividingBy: 1)
+        return max(0, min(1, f))
     }
 
     private func iconForStatus(_ s: String) -> String {
@@ -382,18 +417,11 @@ private struct CoalitionsCard: View {
         VStack(alignment: .leading, spacing: 12) {
             if !orderedCoalitions.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(orderedCoalitions, id: \.id) { c in
-                                FilterChip(
-                                    text: c.name,
-                                    isSelected: (selectedCoalitionId ?? orderedCoalitions.first?.id) == c.id,
-                                    action: { selectedCoalitionId = c.id }
-                                )
-                            }
-                        }
-                        .padding(.vertical, 2)
-                    }
+                    let binding = Binding(
+                        get: { selectedCoalitionId ?? orderedCoalitions.first?.id ?? 0 },
+                        set: { selectedCoalitionId = $0 }
+                    )
+                    ChipsBar(items: orderedCoalitions, selection: binding) { $0.name }
 
                     if let c = selected {
                         VStack(alignment: .leading, spacing: 10) {
@@ -403,8 +431,8 @@ private struct CoalitionsCard: View {
                                 Spacer()
                             }
                             HStack(spacing: 10) {
-                                BigStatTile(title: "Score", value: "\(c.score ?? 0)", systemImage: "chart.line.uptrend.xyaxis")
-                                BigStatTile(title: "Rang", value: c.rank.map { "#\($0)" } ?? "—", systemImage: "crown.fill")
+                                StatCard(style: .regular, title: "Score", value: "\(c.score ?? 0)", systemImage: "chart.line.uptrend.xyaxis")
+                                StatCard(style: .regular, title: "Rang", value: c.rank.map { "#\($0)" } ?? "—", systemImage: "crown.fill")
                             }
                         }
                     }
@@ -412,32 +440,17 @@ private struct CoalitionsCard: View {
                 .onAppear {
                     if selectedCoalitionId == nil { selectedCoalitionId = orderedCoalitions.first?.id }
                 }
+                .onChange(of: orderedCoalitions.map(\.id)) { _, ids in
+					if let sel = selectedCoalitionId, !ids.contains(sel) {
+						selectedCoalitionId = ids.first
+					}
+				}
                 .animation(.snappy, value: selectedCoalitionId)
             } else {
                 ContentUnavailableView("Aucune coalition", systemImage: "flag.slash")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-    }
-}
-
-private struct MetricCapsule: View {
-    let title: String
-    let systemImage: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.caption2).foregroundStyle(.secondary)
-                Text(value).font(.callout.weight(.semibold))
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.accentColor.opacity(0.1)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.accentColor.opacity(0.2), lineWidth: 1))
     }
 }
 
@@ -456,7 +469,7 @@ private struct LoadableSection<Content: View, Loading: View, Failed: View>: View
         self.title = title
         self.state = state
         self.loading = loading()
-               self.failed = failed()
+        self.failed = failed()
         self.content = content()
     }
 
@@ -755,24 +768,23 @@ private struct UnifiedItemsSection: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(g.options.keys.sorted(), id: \.self) { key in
-                                        FilterChip(
-                                            text: g.options[key] ?? "Cursus \(key)",
-                                            isSelected: (selectedId ?? g.defaultId) == key,
-                                            action: { selectedId = key }
-                                        )
-                                    }
-                                }
-                                .padding(.vertical, 2)
+                            let binding = Binding(
+                                get: { selectedId ?? g.defaultId },
+                                set: { selectedId = $0 }
+                            )
+                            let options = g.options.keys.sorted().compactMap { id -> KeyValue in
+                                KeyValue(id: id, label: g.options[id] ?? "Cursus \(id)")
                             }
+                            ChipsBar(items: options, selection: binding) { $0.label }
 
                             let effective = selectedId ?? g.defaultId
                             let items = g.itemsById[effective] ?? []
                             itemsView(items: items)
                         }
                         .onAppear { if selectedId == nil { selectedId = g.defaultId } }
+                        .onChange(of: Array(g.itemsById.keys).sorted()) { _, keys in
+							if let sel = selectedId, !keys.contains(sel) { selectedId = g.defaultId }
+						}
                         .animation(.snappy, value: selectedId)
                     }
                 }
@@ -808,6 +820,11 @@ private struct UnifiedItemsSection: View {
                     .presentationDragIndicator(.visible)
             }
         }
+    }
+
+    private struct KeyValue: Identifiable, Hashable {
+        let id: Int
+        let label: String
     }
 }
 
