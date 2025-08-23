@@ -8,135 +8,135 @@ private let projectsSectionMaxHeight: CGFloat = 420
 struct UserProfileView: View {
     @ObservedObject var loader: UserProfileLoader
 
-	var body: some View {
-		ScrollView {
-			VStack(alignment: .leading, spacing: 32) {
-				Text("Mon profil")
-					.font(.largeTitle.bold())
-					.frame(maxWidth: .infinity, alignment: .leading)
-				LazyVStack(spacing: 24) {
-					LoadableSection(title: "Identité", state: loader.basicState) {
-						IdentitySkeleton()
-					} failed: {
-						RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
-					} content: {
-						if let p = loader.profile {
-							VStack(alignment: .leading, spacing: 16) {
-								IdentityCard(profile: p)
-								HStack(spacing: 12) {
-									StatCard(style: .compact, title: "Wallet", value: "\(p.wallet)", systemImage: "creditcard.fill")
-									StatCard(style: .compact, title: "Points d’évaluations", value: "\(p.correctionPoint)", systemImage: "scalemass.fill")
-									Spacer()
-								}
-							}
-						} else {
-							IdentitySkeleton()
-						}
-					}
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 32) {
+                Text("Mon profil")
+                    .font(.largeTitle.bold())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                LazyVStack(spacing: 24) {
+                    LoadableSection(title: "Identité", state: loader.basicState) {
+                        IdentitySkeleton()
+                    } failed: {
+                        RetryRow(title: "Impossible de charger le profil") { loader.retryBasic() }
+                    } content: {
+                        if let p = loader.profile {
+                            VStack(alignment: .leading, spacing: 16) {
+                                IdentityCard(profile: p)
+                                HStack(spacing: 12) {
+                                    StatCard(style: .compact, title: "Wallet", value: "\(p.wallet)", systemImage: "creditcard.fill")
+                                    StatCard(style: .compact, title: "Points d’évaluations", value: "\(p.correctionPoint)", systemImage: "scalemass.fill")
+                                    Spacer()
+                                }
+                            }
+                        } else {
+                            IdentitySkeleton()
+                        }
+                    }
 
-					LoadableSection(title: "À propos", state: loader.basicState) {
-						LoadingListPlaceholder(lines: 2, compact: true)
-					} failed: {
-						RetryRow(title: "Impossible de charger le statut") { loader.retryBasic() }
-					} content: {
-						if let p = loader.profile, !(p.displayableStatus.isEmpty && p.cursus.isEmpty) {
-							StatusCursusCard(profile: p)
-						} else {
-							ContentUnavailableView("Aucune information", systemImage: "info.circle")
-								.frame(maxWidth: .infinity, alignment: .leading)
-						}
-					}
+                    LoadableSection(title: "À propos", state: loader.basicState) {
+                        LoadingListPlaceholder(lines: 2, compact: true)
+                    } failed: {
+                        RetryRow(title: "Impossible de charger le statut") { loader.retryBasic() }
+                    } content: {
+                        if let p = loader.profile, !(p.displayableStatus.isEmpty && p.cursus.isEmpty) {
+                            StatusCursusCard(profile: p)
+                        } else {
+                            ContentUnavailableView("Aucune information", systemImage: "info.circle")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
 
-					LoadableSection(
-						title: "Coalitions",
-						state: loader.coalitionsState
-					) {
-						LoadingListPlaceholder(lines: 2, compact: true)
-					} failed: {
-						RetryRow(title: "Impossible de charger les coalitions") {
-							loader.retryCoalitions()
-						}
-					} content: {
-						if let p = loader.profile {
-							CoalitionsCard(profile: p)
-						} else {
-							LoadingListPlaceholder(lines: 2, compact: true)
-						}
-					}
+                    LoadableSection(title: "Coalitions", state: loader.coalitionsState) {
+                        LoadingListPlaceholder(lines: 2, compact: true)
+                    } failed: {
+                        RetryRow(title: "Impossible de charger les coalitions") { loader.retryCoalitions() }
+                    } content: {
+                        if let p = loader.profile {
+                            CoalitionsCard(profile: p)
+                        } else {
+                            LoadingListPlaceholder(lines: 2, compact: true)
+                        }
+                    }
 
-					LoadableSection(title: "Log time", state: loader.logState) {
-						LoadingListPlaceholder(lines: 1, compact: true)
-					} failed: {
-						RetryRow(title: "Impossible de charger le log time") { loader.retryLog() }
-					} content: {
-						WeeklyLogCard(logs: loader.weeklyLog)
-					}
+                    LoadableSection(title: "Log time", state: loader.logState) {
+                        LoadingListPlaceholder(lines: 1, compact: true)
+                    } failed: {
+                        RetryRow(title: "Impossible de charger le log time") { loader.retryLog() }
+                    } content: {
+                        WeeklyLogCard(logs: loader.weeklyLog)
+                    }
 
-					if let p = loader.profile {
-						UnifiedItemsSection(
-							title: "Achievements",
-							state: loader.basicState,
-							source: .flat(ItemsBuilder.achievements(from: p)),
-							emptyText: "Aucun Achievements",
-							maxHeight: achievementsSectionMaxHeight
-						)
+                    if let p = loader.profile {
+                        UnifiedItemsSection(
+                            title: "Achievements",
+                            state: loader.basicState,
+                            source: .flat(ItemsBuilder.achievements(from: p)),
+                            emptyText: "Aucun Achievements",
+                            maxHeight: achievementsSectionMaxHeight
+                        )
 
-						UnifiedItemsSection(
-							title: "En cours",
-							state: loader.projectsState,
-							source: .grouped(ItemsBuilder.activeProjectsGrouped(from: p)),
-							emptyText: "Aucun projet pour ce cursus",
-							maxHeight: projectsSectionMaxHeight
-						)
+                        UnifiedItemsSection(
+                            title: "En cours",
+                            state: loader.projectsState,
+                            source: .grouped(ItemsBuilder.activeProjectsGrouped(from: p)),
+                            emptyText: "Aucun projet pour ce cursus",
+                            maxHeight: projectsSectionMaxHeight
+                        )
 
-						UnifiedItemsSection(
-							title: "Projets terminés",
-							state: loader.projectsState,
-							source: .grouped(ItemsBuilder.finishedProjectsGrouped(from: p)),
-							emptyText: "Aucun projet pour ce cursus",
-							maxHeight: finishedProjectsSectionMaxHeight
-						)
-					} else {
-						LoadableSection(title: "Achievements", state: loader.basicState) {
-							LoadingListPlaceholder(lines: 2, compact: true)
-						} failed: {
-							EmptyRow(text: "Erreur")
-						} content: {
-							ContentUnavailableView("Aucun Achievements", systemImage: "trophy")
-								.frame(maxWidth: .infinity, alignment: .leading)
-						}
+                        UnifiedItemsSection(
+                            title: "Projets terminés",
+                            state: loader.projectsState,
+                            source: .grouped(ItemsBuilder.finishedProjectsGrouped(from: p)),
+                            emptyText: "Aucun projet pour ce cursus",
+                            maxHeight: finishedProjectsSectionMaxHeight
+                        )
+                    } else {
+                        LoadableSection(title: "Achievements", state: loader.basicState) {
+                            LoadingListPlaceholder(lines: 2, compact: true)
+                        } failed: {
+                            EmptyRow(text: "Erreur")
+                        } content: {
+                            ContentUnavailableView("Aucun Achievements", systemImage: "trophy")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
 
-						LoadableSection(title: "En cours", state: loader.projectsState) {
-							LoadingListPlaceholder(lines: 2)
-						} failed: {
-							EmptyRow(text: "Erreur")
-						} content: {
-							ContentUnavailableView("Aucune donnée", systemImage: "hammer")
-								.frame(maxWidth: .infinity, alignment: .leading)
-						}
+                        LoadableSection(title: "En cours", state: loader.projectsState) {
+                            LoadingListPlaceholder(lines: 2)
+                        } failed: {
+                            EmptyRow(text: "Erreur")
+                        } content: {
+                            ContentUnavailableView("Aucune donnée", systemImage: "hammer")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
 
-						LoadableSection(title: "Projets terminés", state: loader.projectsState) {
-							LoadingListPlaceholder(lines: 3)
-						} failed: {
-							EmptyRow(text: "Erreur")
-						} content: {
-							ContentUnavailableView("Aucune donnée", systemImage: "checkmark.seal")
-								.frame(maxWidth: .infinity, alignment: .leading)
-						}
-					}
+                        LoadableSection(title: "Projets terminés", state: loader.projectsState) {
+                            LoadingListPlaceholder(lines: 3)
+                        } failed: {
+                            EmptyRow(text: "Erreur")
+                        } content: {
+                            ContentUnavailableView("Aucune donnée", systemImage: "checkmark.seal")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
 
-					if let updated = loader.lastUpdated {
-						Text("Actualisé: \(updated.formatted(date: .abbreviated, time: .shortened))")
-							.font(.footnote)
-							.foregroundStyle(.secondary)
-							.frame(maxWidth: .infinity, alignment: .center)
-					}
-				}
-			}
-			.padding()
-		}
-		.frame(maxWidth: .infinity, maxHeight: .infinity)
-	}
+                    if let updated = loader.lastUpdated {
+                        Text("Actualisé: \(updated.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
+            }
+            .padding()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .refreshable { await loader.refreshNow() }
+        .animation(.snappy, value: loader.basicState)
+        .animation(.snappy, value: loader.projectsState)
+        .animation(.snappy, value: loader.coalitionsState)
+        .animation(.snappy, value: loader.logState)
+    }
 }
 
 private struct IdentityCard: View {
@@ -208,6 +208,7 @@ private struct IdentitySkeleton: View {
             }
             Spacer()
         }
+        .redacted(reason: .placeholder)
     }
 }
 
@@ -223,6 +224,7 @@ private struct Avatar: View {
         }
         .frame(width: 120, height: 120)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityHidden(true)
     }
 }
 
@@ -373,10 +375,10 @@ private struct StatusCursusCard: View {
                     if selectedCursusId == nil { selectedCursusId = orderedCursus.first?.id }
                 }
                 .onChange(of: orderedCursus.map(\.id)) { _, ids in
-					if let sel = selectedCursusId, !ids.contains(sel) {
-						selectedCursusId = ids.first
-					}
-				}
+                    if let sel = selectedCursusId, !ids.contains(sel) {
+                        selectedCursusId = ids.first
+                    }
+                }
                 .animation(.snappy, value: selectedCursusId)
             }
 
@@ -446,10 +448,10 @@ private struct CoalitionsCard: View {
                     if selectedCoalitionId == nil { selectedCoalitionId = orderedCoalitions.first?.id }
                 }
                 .onChange(of: orderedCoalitions.map(\.id)) { _, ids in
-					if let sel = selectedCoalitionId, !ids.contains(sel) {
-						selectedCoalitionId = ids.first
-					}
-				}
+                    if let sel = selectedCoalitionId, !ids.contains(sel) {
+                        selectedCoalitionId = ids.first
+                    }
+                }
                 .animation(.snappy, value: selectedCoalitionId)
             } else {
                 ContentUnavailableView("Aucune coalition", systemImage: "flag.slash")
@@ -788,8 +790,8 @@ private struct UnifiedItemsSection: View {
                         }
                         .onAppear { if selectedId == nil { selectedId = g.defaultId } }
                         .onChange(of: Array(g.itemsById.keys).sorted()) { _, keys in
-							if let sel = selectedId, !keys.contains(sel) { selectedId = g.defaultId }
-						}
+                            if let sel = selectedId, !keys.contains(sel) { selectedId = g.defaultId }
+                        }
                         .animation(.snappy, value: selectedId)
                     }
                 }

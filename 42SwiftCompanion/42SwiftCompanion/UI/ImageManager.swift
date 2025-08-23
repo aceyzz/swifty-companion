@@ -4,10 +4,20 @@ actor SecureImageLoader {
     static let shared = SecureImageLoader()
     private let cache = NSCache<NSURL, NSData>()
     private var tasks: [NSURL: Task<Data, Error>] = [:]
+    private let session: URLSession
+    private let maxAttempts = 3
 
     init() {
         cache.countLimit = 512
         cache.totalCostLimit = 32 * 1024 * 1024
+        let cfg = URLSessionConfiguration.default
+        cfg.requestCachePolicy = .returnCacheDataElseLoad
+        cfg.timeoutIntervalForRequest = 20
+        cfg.timeoutIntervalForResource = 40
+        cfg.waitsForConnectivity = true
+        cfg.allowsExpensiveNetworkAccess = true
+        cfg.allowsConstrainedNetworkAccess = true
+        session = URLSession(configuration: cfg)
     }
 
     func data(for url: URL) async throws -> Data {
@@ -19,18 +29,41 @@ actor SecureImageLoader {
             return try await existing.value
         }
         let task = Task<Data, Error> {
-            var req = URLRequest(url: url)
-            if url.host == "api.intra.42.fr", let token = await AuthService.shared.accessToken, !token.isEmpty {
-                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            var attempt = 0
+            while true {
+                try Task.checkCancellation()
+                var req = URLRequest(url: url)
+                req.timeoutInterval = 20
+                req.cachePolicy = .returnCacheDataElseLoad
+                if url.host == "api.intra.42.fr", let token = await AuthService.shared.accessToken, !token.isEmpty {
+                    req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                }
+                do {
+                    let (data, response) = try await session.data(for: req)
+                    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                        throw URLError(.badServerResponse)
+                    }
+                    try Task.checkCancellation()
+                    cache.setObject(data as NSData, forKey: key, cost: data.count)
+                    return data
+                } catch {
+                    attempt += 1
+                    if attempt >= maxAttempts { throw error }
+                    let delay = backoffDelay(attempt: attempt)
+                    try? await Task.sleep(nanoseconds: delay)
+                }
             }
-            let (data, _) = try await URLSession.shared.data(for: req)
-            try Task.checkCancellation()
-            cache.setObject(data as NSData, forKey: key, cost: data.count)
-            return data
         }
         tasks[key] = task
         defer { tasks[key] = nil }
         return try await task.value
+    }
+
+    private func backoffDelay(attempt: Int) -> UInt64 {
+        let base: Double = 0.6
+        let jitter = Double.random(in: 0...0.35)
+        let seconds = pow(2, Double(attempt - 1)) * base * (1 + jitter)
+        return UInt64(seconds * 1_000_000_000)
     }
 }
 
