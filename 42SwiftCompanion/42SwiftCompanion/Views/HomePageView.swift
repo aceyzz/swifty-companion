@@ -144,8 +144,8 @@ private struct CampusInfoCard: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.opacity(0.08)))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.accentColor.opacity(0.18), lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color("AccentColor").opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color("AccentColor").opacity(0.18), lineWidth: 1))
         }
     }
 }
@@ -182,7 +182,7 @@ private struct EventDetailSheet: View {
                 HStack(spacing: 12) {
                     Image(systemName: "calendar.badge.clock")
                         .frame(width: 48, height: 48)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color("AccentColor").opacity(0.12)))
                     VStack(alignment: .leading, spacing: 4) {
                         Text(event.title).font(.title3).bold()
                         Text(event.when).font(.footnote).foregroundStyle(.secondary)

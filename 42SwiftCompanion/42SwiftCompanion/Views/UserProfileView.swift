@@ -242,11 +242,11 @@ private struct FilterChip: View {
                 .padding(.vertical, 8)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.accentColor.opacity(0.08))
+                        .fill(isSelected ? Color("AccentColor").opacity(0.18) : Color("AccentColor").opacity(0.08))
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(isSelected ? Color.accentColor.opacity(0.45) : Color.accentColor.opacity(0.2), lineWidth: isSelected ? 1.5 : 1)
+                        .stroke(isSelected ? Color("AccentColor").opacity(0.45) : Color("AccentColor").opacity(0.2), lineWidth: isSelected ? 1.5 : 1)
                 )
         }
         .buttonStyle(.plain)
@@ -308,8 +308,8 @@ private struct StatCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.accentColor.opacity(0.18), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color("AccentColor").opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color("AccentColor").opacity(0.18), lineWidth: 1))
     }
 }
 
@@ -513,14 +513,14 @@ struct SectionCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color("AccentColor"))
                 .padding(.bottom, 4)
             content
         }
         .padding(20)
         .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.accentColor.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.accentColor.opacity(0.18), lineWidth: 1.5))
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color("AccentColor").opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color("AccentColor").opacity(0.18), lineWidth: 1.5))
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
         .padding(.horizontal, 8)
     }
@@ -594,7 +594,7 @@ struct WeeklyLogCard: View {
                     y: .value("Heures", item.hours)
                 )
                 .cornerRadius(8)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color("AccentColor"))
                 .opacity(item.hours > 0 ? 1 : 0.35)
             }
             .chartXScale(domain: xDomain)
@@ -651,8 +651,8 @@ private struct StatPill: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.1)))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.accentColor.opacity(0.2), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color("AccentColor").opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color("AccentColor").opacity(0.2), lineWidth: 1))
     }
 }
 
@@ -843,7 +843,7 @@ private struct ItemDetailSheet: View {
                 HStack(spacing: 12) {
                     Image(systemName: item.sheetIcon)
                         .frame(width: 48, height: 48)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.12)))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color("AccentColor").opacity(0.12)))
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.sheetTitle).font(.title3).bold()
                         if let subtitle = item.subtitle, !subtitle.isEmpty {
