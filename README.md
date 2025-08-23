@@ -162,34 +162,20 @@ Gestion centralisée des pages et du header Link côté APIClient.
 ## Captures d'écran
 
 <div align="center">
-
-<table>
-	<tr>
-		<td><img src="./utils/screens/1.png" alt="Screen 1" width="220"></td>
-		<td><img src="./utils/screens/2.png" alt="Screen 2" width="220"></td>
-		<td><img src="./utils/screens/3.png" alt="Screen 3" width="220"></td>
-		<td><img src="./utils/screens/4.png" alt="Screen 4" width="220"></td>
-	</tr>
-	<tr>
-		<td><img src="./utils/screens/5.png" alt="Screen 5" width="220"></td>
-		<td><img src="./utils/screens/6.png" alt="Screen 6" width="220"></td>
-		<td><img src="./utils/screens/7.png" alt="Screen 7" width="220"></td>
-		<td><img src="./utils/screens/8.png" alt="Screen 8" width="220"></td>
-	</tr>
-</table>
-
-<br>
-
-<style>
-	img {
-		border-radius: 24px;
-		box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-		border: 1px solid #e0e0e0;
-		background: #fff;
-		margin: 8px;
-	}
-</style>
-
+	<table>
+		<tr>
+			<td><img src="./utils/screens/1.png" alt="Screen 1" width="220" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e0e0e0;background:#fff;margin:8px;"></td>
+			<td><img src="./utils/screens/2.png" alt="Screen 2" width="220" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e0e0e0;background:#fff;margin:8px;"></td>
+			<td><img src="./utils/screens/3.png" alt="Screen 3" width="220" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e0e0e0;background:#fff;margin:8px;"></td>
+			<td><img src="./utils/screens/4.png" alt="Screen 4" width="220" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e0e0e0;background:#fff;margin:8px;"></td>
+		</tr>
+		<tr>
+			<td><img src="./utils/screens/5.png" alt="Screen 5" width="220" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e0e0e0;background:#fff;margin:8px;"></td>
+			<td><img src="./utils/screens/6.png" alt="Screen 6" width="220" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e0e0e0;background:#fff;margin:8px;"></td>
+			<td><img src="./utils/screens/7.png" alt="Screen 7" width="220" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e0e0e0;background:#fff;margin:8px;"></td>
+			<td><img src="./utils/screens/8.png" alt="Screen 8" width="220" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e0e0e0;background:#fff;margin:8px;"></td>
+		</tr>
+	</table>
 </div>
 
 <br>
