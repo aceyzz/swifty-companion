@@ -47,12 +47,6 @@ struct MainTabView: View {
     }
 }
 
-struct HomeView: View {
-    var body: some View {
-        Text("Accueil").font(.largeTitle).frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 struct SearchView: View {
     var body: some View {
         Text("Recherche étudiant").font(.largeTitle).frame(maxWidth: .infinity, maxHeight: .infinity)

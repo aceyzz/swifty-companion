@@ -10,6 +10,7 @@ struct UserProfile: Identifiable, Codable {
     let imageURL: URL?
     let poolMonth: String?
     let poolYear: String?
+	let campusId: Int?
     let campusName: String?
     let campusCity: String?
     let campusCountry: String?
@@ -170,6 +171,7 @@ struct ImageRaw: Decodable { let link: String }
 struct CampusLanguageRaw: Decodable { let name: String?; let identifier: String? }
 
 struct CampusRaw: Decodable {
+	let id: Int?
     let name: String
     let time_zone: String?
     let city: String?
@@ -251,6 +253,7 @@ struct UserInfoRaw: Decodable {
     let cursus_users: [CursusUserRaw]
 
     var image_url: String { image.link }
+	var campus_id: Int? { campus?.first?.id }
     var campus_name: String? { campus?.first?.name }
     var campus_city: String? { campus?.first?.city }
     var campus_country: String? { campus?.first?.country }
@@ -300,6 +303,7 @@ extension UserProfile {
         self.imageURL = URL(string: raw.image.link)
         self.poolMonth = raw.pool_month
         self.poolYear = raw.pool_year
+		self.campusId = raw.campus_id
         self.campusName = raw.campus_name
         self.campusCity = raw.campus_city
         self.campusCountry = raw.campus_country
@@ -323,14 +327,14 @@ extension UserProfile {
     }
 
     func with(coalitions: [Coalition]) -> UserProfile {
-        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
+        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
     }
 
     func with(projectsFinished: [Project], projectsActive: [ActiveProject]) -> UserProfile {
-        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: projectsFinished, activeProjects: projectsActive)
+        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: projectsFinished, activeProjects: projectsActive)
     }
 
     func with(currentHost: String?) -> UserProfile {
-        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
+        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
     }
 }
