@@ -45,11 +45,14 @@ private struct MeLogin: Decodable {
 
 @MainActor
 final class AuthService: NSObject, ObservableObject {
+    enum Phase: Equatable { case unknown, unauthenticated, authenticated }
+
     static let shared = AuthService()
 
     @Published private(set) var isAuthenticated = false
     @Published private(set) var currentLogin: String = ""
     @Published private(set) var isPostWebAuthLoading = false
+    @Published private(set) var phase: Phase = .unknown
 
     private let service = "intra.42.fr"
     private let accessAccount = "accessToken"
@@ -103,14 +106,17 @@ final class AuthService: NSObject, ObservableObject {
     }
 
     func checkAuthentication() {
+        phase = .unknown
         if let token = accessToken, let expiration = tokenExpiration, expiration > Date(), !token.isEmpty {
             isAuthenticated = true
+            phase = .authenticated
             Task {
                 await startRefreshLoop()
                 if currentLogin.isEmpty { await fetchAndStoreCurrentUserLogin() }
             }
         } else {
             isAuthenticated = false
+            phase = .unauthenticated
             cancelRefreshLoop()
         }
     }
@@ -142,6 +148,7 @@ final class AuthService: NSObject, ObservableObject {
         currentLogin = ""
         isAuthenticated = false
         isPostWebAuthLoading = false
+        phase = .unauthenticated
         UserDefaults.standard.removeObject(forKey: userLoginKey)
         cancelRefreshLoop()
         ProfileStore.shared.stop()
@@ -171,6 +178,7 @@ final class AuthService: NSObject, ObservableObject {
         if let r = t.refresh_token { refreshToken = r }
         tokenExpiration = Date().addingTimeInterval(t.expires_in)
         isAuthenticated = true
+        phase = .authenticated
     }
 
     private func exchangeCodeForTokens(code: String) async {
@@ -188,9 +196,11 @@ final class AuthService: NSObject, ObservableObject {
                 await startRefreshLoop()
             } else {
                 isAuthenticated = false
+                phase = .unauthenticated
             }
         } catch {
             isAuthenticated = false
+            phase = .unauthenticated
         }
     }
 
@@ -215,9 +225,11 @@ final class AuthService: NSObject, ObservableObject {
                 updateTokens(tokens)
             } else {
                 isAuthenticated = false
+                phase = .unauthenticated
             }
         } catch {
             isAuthenticated = false
+            phase = .unauthenticated
         }
     }
 }

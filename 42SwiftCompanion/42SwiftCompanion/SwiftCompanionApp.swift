@@ -8,11 +8,14 @@ struct _2SwiftCompanionApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if authService.isAuthenticated {
+                switch authService.phase {
+                case .unknown:
+                    BootView()
+                case .authenticated:
                     MainTabView()
                         .environmentObject(authService)
                         .environmentObject(profileStore)
-                } else {
+                case .unauthenticated:
                     LoginView()
                         .environmentObject(authService)
                 }
@@ -31,6 +34,7 @@ struct _2SwiftCompanionApp: App {
                 }
             }
             .disabled(authService.isPostWebAuthLoading)
+            .animation(.snappy, value: authService.phase)
             .animation(.snappy, value: authService.isPostWebAuthLoading)
         }
     }
