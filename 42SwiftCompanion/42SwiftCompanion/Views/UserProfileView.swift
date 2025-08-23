@@ -191,11 +191,12 @@ private struct IdentityCard: View {
     }
 
     private func iconForContact(_ s: String) -> String {
-        if s.contains("@") { return "envelope" }
-        if s.contains("—") || s.contains("(") { return "building.2" }
-        if CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: s.filter { $0.isNumber })) { return "phone" }
-        return "person"
-    }
+		if s.contains("@") { return "envelope" }
+		if s.contains("—") || s.contains("(") { return "building.2" }
+		let digits = s.filter { $0.isNumber }
+		if digits.count >= 6 { return "phone" }
+		return "person"
+	}
 }
 
 private struct IdentitySkeleton: View {
@@ -371,13 +372,10 @@ private struct StatusCursusCard: View {
                         }
                     }
                 }
-                .onAppear {
-                    if selectedCursusId == nil { selectedCursusId = orderedCursus.first?.id }
-                }
-                .onChange(of: orderedCursus.map(\.id)) { _, ids in
-                    if let sel = selectedCursusId, !ids.contains(sel) {
-                        selectedCursusId = ids.first
-                    }
+                .task(id: orderedCursus.map(\.id)) {
+                    let ids = orderedCursus.map(\.id)
+                    if selectedCursusId == nil { selectedCursusId = ids.first }
+                    else if let sel = selectedCursusId, !ids.contains(sel) { selectedCursusId = ids.first }
                 }
                 .animation(.snappy, value: selectedCursusId)
             }
@@ -444,13 +442,10 @@ private struct CoalitionsCard: View {
                         }
                     }
                 }
-                .onAppear {
-                    if selectedCoalitionId == nil { selectedCoalitionId = orderedCoalitions.first?.id }
-                }
-                .onChange(of: orderedCoalitions.map(\.id)) { _, ids in
-                    if let sel = selectedCoalitionId, !ids.contains(sel) {
-                        selectedCoalitionId = ids.first
-                    }
+                .task(id: orderedCoalitions.map(\.id)) {
+                    let ids = orderedCoalitions.map(\.id)
+                    if selectedCoalitionId == nil { selectedCoalitionId = ids.first }
+                    else if let sel = selectedCoalitionId, !ids.contains(sel) { selectedCoalitionId = ids.first }
                 }
                 .animation(.snappy, value: selectedCoalitionId)
             } else {
@@ -494,11 +489,17 @@ private struct LoadableSection<Content: View, Loading: View, Failed: View>: View
 struct MyProfileView: View {
     @EnvironmentObject var profileStore: ProfileStore
     var body: some View {
-        if let loader = profileStore.loader {
-            UserProfileView(loader: loader)
-        } else {
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        Group {
+            if let loader = profileStore.loader {
+                UserProfileView(loader: loader)
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
+        .task(id: profileStore.loader?.login) {
+            if profileStore.loader == nil { profileStore.start() }
+        }
+        .animation(.snappy, value: profileStore.loader?.login)
     }
 }
 
@@ -542,26 +543,23 @@ struct WeeklyLogCard: View {
     let logs: [DailyLog]
 
     private var series: [DailyLog] {
-        if logs.isEmpty {
-            var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = TimeZone.current
-            let today = cal.startOfDay(for: Date())
-            return (0..<14).compactMap { i in
-                guard let d = cal.date(byAdding: .day, value: -(13 - i), to: today) else { return nil }
-                return DailyLog(date: d, hours: 0)
-            }
-        } else {
-            var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = TimeZone.current
-            var bucket: [Date: Double] = [:]
-            for l in logs {
-                let day = cal.startOfDay(for: l.date)
-                bucket[day, default: 0] += l.hours
-            }
-            let keys = bucket.keys.sorted()
-            return keys.map { DailyLog(date: $0, hours: bucket[$0] ?? 0) }
-        }
-    }
+		var cal = Calendar(identifier: .gregorian)
+		cal.timeZone = TimeZone.current
+		let today = cal.startOfDay(for: Date())
+		let start = cal.date(byAdding: .day, value: -13, to: today) ?? today
+
+		var bucket: [Date: Double] = [:]
+		for i in 0..<14 {
+			if let d = cal.date(byAdding: .day, value: i, to: start) {
+				bucket[cal.startOfDay(for: d)] = 0
+			}
+		}
+		for l in logs {
+			let d = cal.startOfDay(for: l.date)
+			if bucket[d] != nil { bucket[d, default: 0] += l.hours }
+		}
+		return bucket.keys.sorted().map { DailyLog(date: $0, hours: bucket[$0] ?? 0) }
+	}
 
     private var totalHours: Double { series.reduce(0) { $0 + $1.hours } }
     private var avgHours: Double { series.isEmpty ? 0 : totalHours / Double(series.count) }
@@ -788,9 +786,10 @@ private struct UnifiedItemsSection: View {
                             let items = g.itemsById[effective] ?? []
                             itemsView(items: items)
                         }
-                        .onAppear { if selectedId == nil { selectedId = g.defaultId } }
-                        .onChange(of: Array(g.itemsById.keys).sorted()) { _, keys in
-                            if let sel = selectedId, !keys.contains(sel) { selectedId = g.defaultId }
+                        .task(id: Array(g.itemsById.keys).sorted()) {
+                            let keys = Array(g.itemsById.keys).sorted()
+                            if selectedId == nil { selectedId = g.defaultId }
+                            else if let sel = selectedId, !keys.contains(sel) { selectedId = g.defaultId }
                         }
                         .animation(.snappy, value: selectedId)
                     }
@@ -819,6 +818,7 @@ private struct UnifiedItemsSection: View {
                 }
                 .padding(.trailing, 2)
             }
+			.scrollDisabled(items.count <= 6)
             .frame(maxHeight: maxHeight)
             .scrollIndicators(.visible)
             .sheet(item: $presented) { it in
