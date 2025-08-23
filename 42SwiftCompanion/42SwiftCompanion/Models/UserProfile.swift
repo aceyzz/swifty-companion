@@ -338,3 +338,28 @@ extension UserProfile {
         UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
     }
 }
+
+struct UserSummary: Identifiable, Codable, Equatable {
+    let login: String
+    let displayName: String?
+    let imageURL: URL?
+    let primaryCampusId: Int?
+    var id: String { login }
+}
+
+struct UserSummaryRaw: Decodable {
+    struct ImageObj: Decodable { let link: String? }
+    let id: Int?
+    let login: String
+    let displayname: String?
+    let image_url: String?
+    let image: ImageObj?
+    let primary_campus_id: Int?
+}
+
+extension UserSummary {
+    static func fromRaw(_ r: UserSummaryRaw) -> UserSummary {
+        let urlStr = r.image?.link ?? r.image_url
+        return .init(login: r.login, displayName: r.displayname, imageURL: urlStr.flatMap(URL.init(string:)), primaryCampusId: r.primary_campus_id)
+    }
+}
