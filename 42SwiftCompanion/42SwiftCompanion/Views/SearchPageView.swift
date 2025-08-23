@@ -2,85 +2,89 @@ import SwiftUI
 import OSLog
 
 struct SearchView: View {
-    @EnvironmentObject var profileStore: ProfileStore
-    @StateObject private var vm = UserSearchViewModel()
-    @FocusState private var searchFocused: Bool
+	@EnvironmentObject var profileStore: ProfileStore
+	@StateObject private var vm = UserSearchViewModel()
+	@FocusState private var searchFocused: Bool
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("Recherche")
-                    .font(.largeTitle.bold())
-                    .frame(maxWidth: .infinity, alignment: .leading)
+	var body: some View {
+		ScrollView {
+			VStack(alignment: .leading, spacing: 24) {
+				Text("Recherche")
+					.font(.largeTitle.bold())
+					.frame(maxWidth: .infinity, alignment: .leading)
 
-                ClassicSearchField(
-                    text: $vm.searchText,
-                    isLoading: vm.isSearching,
-                    onSubmit: {
-                        searchFocused = false
-                        vm.submit()
-                    },
-                    focus: $searchFocused
-                )
+				ClassicSearchField(
+					text: $vm.searchText,
+					isLoading: vm.isSearching,
+					onSubmit: {
+						searchFocused = false
+						vm.submit()
+					},
+					focus: $searchFocused
+				)
 
-                LazyVStack(spacing: 16) {
-                    SectionCard(title: "Résultats") {
-                        switch vm.state {
-                        case .idle:
-                            ContentUnavailableView("Recherche un étudiant", systemImage: "magnifyingglass")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        case .loading:
-                            LoadingListPlaceholder(lines: 4)
-                        case .failed(let message):
-                            RetryRow(title: message) {
-                                searchFocused = false
-                                vm.submit(force: true)
-                            }
-                        case .loaded(let items):
-                            if items.isEmpty {
-                                ContentUnavailableView("Aucun résultat", systemImage: "person.fill.questionmark")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            } else {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    ForEach(items) { u in
-                                        InfoPillRow(
-                                            leading: u.imageURL.map(InfoPillRow.Leading.url),
-                                            title: u.displayName?.isEmpty == false ? (u.displayName ?? u.login) : u.login,
-                                            subtitle: u.displayName?.isEmpty == false ? u.login : nil,
-                                            onTap: {
-                                                searchFocused = false
-                                                vm.select(user: u)
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+				LazyVStack(spacing: 16) {
+					if vm.state != .idle {
+						SectionCard(title: "Résultats") {
+							switch vm.state {
+							case .idle:
+								EmptyView()
+							case .loading:
+								LoadingListPlaceholder(lines: 4)
+							case .failed(let message):
+								RetryRow(title: message) {
+									searchFocused = false
+									vm.submit(force: true)
+								}
+							case .loaded(let items):
+								if items.isEmpty {
+									ContentUnavailableView("Aucun résultat", systemImage: "person.fill.questionmark")
+										.frame(maxWidth: .infinity, alignment: .leading)
+								} else {
+									VStack(alignment: .leading, spacing: 10) {
+										ForEach(items) { u in
+											InfoPillRow(
+												leading: u.imageURL.map(InfoPillRow.Leading.url),
+												title: u.displayName?.isEmpty == false ? (u.displayName ?? u.login) : u.login,
+												subtitle: u.displayName?.isEmpty == false ? u.login : nil,
+												onTap: {
+													searchFocused = false
+													vm.select(user: u)
+												}
+											)
+										}
+									}
+								}
+							}
+						}
+					} else {
+						ContentUnavailableView("Recherche un étudiant", systemImage: "magnifyingglass")
+							.frame(maxWidth: .infinity, alignment: .leading)
+					}
 
-                    if let updated = vm.lastUpdated {
-                        Text("Actualisé: \(updated.formatted(date: .abbreviated, time: .shortened))")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                }
-            }
-            .padding()
-        }
-        .scrollDismissesKeyboard(.immediately)
-        .background(KeyboardDismissArea { searchFocused = false })
-        .onAppear { vm.bootstrap(currentCampusId: profileStore.loader?.profile?.campusId) }
-        .onChange(of: profileStore.loader?.profile?.campusId) { _, newId in
-            vm.bootstrap(currentCampusId: newId)
-        }
-        .fullScreenCover(item: $vm.presentedLogin) { presented in
-            UserProfileScreen(login: presented.id)
-        }
-        .animation(.snappy, value: vm.stateKey)
-        .sensoryFeedback(.success, trigger: vm.feedbackSuccessTick)
-        .sensoryFeedback(.error, trigger: vm.feedbackErrorTick)
-    }
+					if let updated = vm.lastUpdated {
+						Text("Actualisé: \(updated.formatted(date: .abbreviated, time: .shortened))")
+							.font(.footnote)
+							.foregroundStyle(.secondary)
+							.frame(maxWidth: .infinity, alignment: .center)
+					}
+				}
+			}
+			.padding()
+		}
+		.scrollDismissesKeyboard(.immediately)
+		.background(KeyboardDismissArea { searchFocused = false })
+		.onAppear { vm.bootstrap(currentCampusId: profileStore.loader?.profile?.campusId) }
+		.onChange(of: profileStore.loader?.profile?.campusId) { _, newId in
+			vm.bootstrap(currentCampusId: newId)
+		}
+		.fullScreenCover(item: $vm.presentedLogin) { presented in
+			UserProfileScreen(login: presented.id)
+		}
+		.animation(.snappy, value: vm.stateKey)
+		.sensoryFeedback(.success, trigger: vm.feedbackSuccessTick)
+		.sensoryFeedback(.error, trigger: vm.feedbackErrorTick)
+	}
 }
 
 struct ClassicSearchField: View {

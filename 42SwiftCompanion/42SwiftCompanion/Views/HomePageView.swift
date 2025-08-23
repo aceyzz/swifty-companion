@@ -48,6 +48,7 @@ final class HomeDashboardViewModel: ObservableObject {
     private var currentCampusId: Int?
     private let resolver = HomeCampusResolver()
     private var resolveTask: Task<Void, Never>?
+    private var attachTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     private var isBound = false
 
@@ -72,11 +73,12 @@ final class HomeDashboardViewModel: ObservableObject {
             .store(in: &cancellables)
 
         profileStore.$loader
-            .flatMap { loader -> AnyPublisher<Int?, Never> in
+            .map { loader -> AnyPublisher<Int?, Never> in
                 guard let loader else { return Just(nil).eraseToAnyPublisher() }
-                return loader.$profile.map { $0?.campusId }.eraseToAnyPublisher()
+                return loader.$profile.map { $0?.campusId }.removeDuplicates().eraseToAnyPublisher()
             }
-            .removeDuplicates { $0 == $1 }
+            .switchToLatest()
+            .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] id in
                 guard let self else { return }
@@ -111,22 +113,32 @@ final class HomeDashboardViewModel: ObservableObject {
     private func attach(campusId: Int?) {
         guard let id = campusId, id != currentCampusId else { return }
         currentCampusId = id
+        attachTask?.cancel()
         loader?.stop()
         loader = nil
         dashboard = nil
         lastUpdated = nil
+        state = .loading
 
         let l = CampusLoader(campusId: id)
         loader = l
         l.$state.assign(to: &$state)
         l.$dashboard.assign(to: &$dashboard)
         l.$lastUpdated.assign(to: &$lastUpdated)
-        state = .loading
         l.start()
+
+        attachTask = Task { [weak l] in
+            guard let l else { return }
+            await l.refreshNow()
+        }
     }
 
     private func detach() {
         resolver.invalidate()
+        resolveTask?.cancel()
+        resolveTask = nil
+        attachTask?.cancel()
+        attachTask = nil
         currentCampusId = nil
         loader?.stop()
         loader = nil
