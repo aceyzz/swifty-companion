@@ -25,7 +25,10 @@ struct InfoPillRow: View {
     var body: some View {
         Group {
             if let onTap {
-                Button(action: onTap) { content }.buttonStyle(.plain)
+                Button(action: onTap) { content }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(title))
+                    .accessibilityHint(Text(subtitle ?? ""))
             } else {
                 content
             }

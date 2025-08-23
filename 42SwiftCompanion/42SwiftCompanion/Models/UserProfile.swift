@@ -10,7 +10,7 @@ struct UserProfile: Identifiable, Codable {
     let imageURL: URL?
     let poolMonth: String?
     let poolYear: String?
-	let campusId: Int?
+    let campusId: Int?
     let campusName: String?
     let campusCity: String?
     let campusCountry: String?
@@ -103,14 +103,14 @@ extension UserProfile {
         return arr
     }
 
-	var displayableCursus: [String] {
-		cursus.sorted { ($0.level ?? 0) > ($1.level ?? 0) }.compactMap {
-			var s = $0.name ?? "Cursus"
-			if let level = $0.level { s += " — Niveau \(level.formatted(.number.precision(.fractionLength(2))))" }
-			if let grade = $0.grade, !grade.isEmpty { s += " — \(grade)" }
-			return s
-		}
-	}
+    var displayableCursus: [String] {
+        cursus.sorted { ($0.level ?? 0) > ($1.level ?? 0) }.compactMap {
+            var s = $0.name ?? "Cursus"
+            if let level = $0.level { s += " — Niveau \(level.formatted(.number.precision(.fractionLength(2))))" }
+            if let grade = $0.grade, !grade.isEmpty { s += " — \(grade)" }
+            return s
+        }
+    }
 
     var displayableCoalitions: [String] {
         coalitions.map {
@@ -171,7 +171,7 @@ struct ImageRaw: Decodable { let link: String }
 struct CampusLanguageRaw: Decodable { let name: String?; let identifier: String? }
 
 struct CampusRaw: Decodable {
-	let id: Int?
+    let id: Int?
     let name: String
     let time_zone: String?
     let city: String?
@@ -253,7 +253,7 @@ struct UserInfoRaw: Decodable {
     let cursus_users: [CursusUserRaw]
 
     var image_url: String { image.link }
-	var campus_id: Int? { campus?.first?.id }
+    var campus_id: Int? { campus?.first?.id }
     var campus_name: String? { campus?.first?.name }
     var campus_city: String? { campus?.first?.city }
     var campus_country: String? { campus?.first?.country }
@@ -303,7 +303,7 @@ extension UserProfile {
         self.imageURL = URL(string: raw.image.link)
         self.poolMonth = raw.pool_month
         self.poolYear = raw.pool_year
-		self.campusId = raw.campus_id
+        self.campusId = raw.campus_id
         self.campusName = raw.campus_name
         self.campusCity = raw.campus_city
         self.campusCountry = raw.campus_country

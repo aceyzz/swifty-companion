@@ -7,11 +7,8 @@ struct BlockingProgressOverlay: View {
         ZStack {
             Color.black.opacity(0.2).ignoresSafeArea()
             VStack(spacing: 12) {
-                ProgressView()
-                    .controlSize(.large)
-                Text(title)
-                    .font(.callout)
-                    .foregroundStyle(.primary)
+                ProgressView().controlSize(.large)
+                Text(title).font(.callout).foregroundStyle(.primary)
             }
             .padding(20)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))

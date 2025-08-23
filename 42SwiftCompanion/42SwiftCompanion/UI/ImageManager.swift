@@ -24,6 +24,7 @@ actor SecureImageLoader {
                 req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             }
             let (data, _) = try await URLSession.shared.data(for: req)
+            try Task.checkCancellation()
             cache.setObject(data as NSData, forKey: key, cost: data.count)
             return data
         }
@@ -36,7 +37,6 @@ actor SecureImageLoader {
 struct RemoteImage: View {
     let url: URL?
     let cornerRadius: CGFloat
-
     @State private var image: UIImage?
 
     init(url: URL?, cornerRadius: CGFloat = 8) {
@@ -60,6 +60,7 @@ struct RemoteImage: View {
         guard let url else { image = nil; return }
         do {
             let data = try await SecureImageLoader.shared.data(for: url)
+            if Task.isCancelled { return }
             image = UIImage(data: data, scale: UIScreen.main.scale)
         } catch {
             image = nil

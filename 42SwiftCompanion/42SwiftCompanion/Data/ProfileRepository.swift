@@ -98,7 +98,12 @@ final class ProfileRepository {
 
         let finished: [UserProfile.Project] = normalized
             .filter { n in
-                if let st = n.status, ["finished", "waiting_for_correction"].contains(st.lowercased()), n.endAt != nil { return true }
+                let st = n.status?.lowercased() ?? ""
+                let ts = n.teamStatus?.lowercased() ?? ""
+                if n.finalMark != nil { return true }
+                if ["finished", "waiting_for_correction"].contains(st) { return true }
+                if ["finished", "closed"].contains(ts) { return true }
+                if n.endAt != nil { return true }
                 return false
             }
             .map { n in
@@ -118,7 +123,9 @@ final class ProfileRepository {
 
         let active: [UserProfile.ActiveProject] = normalized
             .filter { n in
-                let isFinished = (n.finalMark != nil) || ((n.status?.lowercased()).map { ["finished", "waiting_for_correction"].contains($0) } == true && n.endAt != nil)
+                let st = n.status?.lowercased() ?? ""
+                let ts = n.teamStatus?.lowercased() ?? ""
+                let isFinished = (n.finalMark != nil) || ["finished", "waiting_for_correction"].contains(st) || ["finished", "closed"].contains(ts) || (n.endAt != nil)
                 return !isFinished
             }
             .map { n in
@@ -132,7 +139,7 @@ final class ProfileRepository {
                     registeredAt: n.registeredAt,
                     cursusId: n.cursusId,
                     retry: n.retry,
-                    createdAt: n.endAt ?? n.registeredAt
+                    createdAt: n.registeredAt
                 )
             }
             .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }

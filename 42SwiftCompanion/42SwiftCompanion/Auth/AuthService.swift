@@ -39,9 +39,7 @@ private struct TokenResponse: Decodable {
     let expires_in: Double
 }
 
-private struct MeLogin: Decodable {
-    let login: String
-}
+private struct MeLogin: Decodable { let login: String }
 
 @MainActor
 final class AuthService: NSObject, ObservableObject {
@@ -62,6 +60,7 @@ final class AuthService: NSObject, ObservableObject {
 
     private var session: ASWebAuthenticationSession?
     private var refreshTask: Task<Void, Never>?
+    private var oauthState: String?
 
     private var tokenUrl: String { "https://api.intra.42.fr/oauth/token" }
     private var authorizeUrl: String { "https://api.intra.42.fr/oauth/authorize" }
@@ -114,6 +113,22 @@ final class AuthService: NSObject, ObservableObject {
                 await startRefreshLoop()
                 if currentLogin.isEmpty { await fetchAndStoreCurrentUserLogin() }
             }
+        } else if let rt = refreshToken, !rt.isEmpty {
+            Task {
+                isPostWebAuthLoading = true
+                await refreshAccessToken()
+                isPostWebAuthLoading = false
+                if let token = accessToken, !token.isEmpty {
+                    isAuthenticated = true
+                    phase = .authenticated
+                    await startRefreshLoop()
+                    if currentLogin.isEmpty { await fetchAndStoreCurrentUserLogin() }
+                } else {
+                    isAuthenticated = false
+                    phase = .unauthenticated
+                    cancelRefreshLoop()
+                }
+            }
         } else {
             isAuthenticated = false
             phase = .unauthenticated
@@ -123,20 +138,32 @@ final class AuthService: NSObject, ObservableObject {
 
     func login() {
         guard let scheme = URL(string: APIConfig.redirectUri)?.scheme else { return }
-        guard let authURL = URL(string: "\(authorizeUrl)?client_id=\(APIConfig.clientId)&redirect_uri=\(APIConfig.redirectUri)&response_type=code") else { return }
+        let state = UUID().uuidString
+        oauthState = state
+        var comps = URLComponents(string: authorizeUrl)!
+        comps.queryItems = [
+            URLQueryItem(name: "client_id", value: APIConfig.clientId),
+            URLQueryItem(name: "redirect_uri", value: APIConfig.redirectUri),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "state", value: state),
+            URLQueryItem(name: "scope", value: "public")
+        ]
+        guard let authURL = comps.url else { return }
         session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: scheme) { [weak self] callbackURL, error in
             guard let self else { return }
             if error != nil { self.isPostWebAuthLoading = false; return }
             guard let url = callbackURL else { self.isPostWebAuthLoading = false; return }
-            guard let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "code" })?.value else { self.isPostWebAuthLoading = false; return }
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let code = comps?.queryItems?.first(where: { $0.name == "code" })?.value
+            let returnedState = comps?.queryItems?.first(where: { $0.name == "state" })?.value
+            guard let code, let returnedState, returnedState == self.oauthState else { self.isPostWebAuthLoading = false; return }
             self.isPostWebAuthLoading = true
             Task {
                 defer { self.isPostWebAuthLoading = false }
                 await self.exchangeCodeForTokens(code: code)
             }
         }
-        session?.prefersEphemeralWebBrowserSession = true
+        session?.prefersEphemeralWebBrowserSession = false
         session?.presentationContextProvider = self
         session?.start()
     }
@@ -181,13 +208,29 @@ final class AuthService: NSObject, ObservableObject {
         phase = .authenticated
     }
 
+    private func formBody(_ params: [String: String]) -> Data? {
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._* ")
+        let encoded = params.map { key, value -> String in
+            let k = key.addingPercentEncoding(withAllowedCharacters: allowed)?.replacingOccurrences(of: " ", with: "+") ?? key
+            let v = value.addingPercentEncoding(withAllowedCharacters: allowed)?.replacingOccurrences(of: " ", with: "+") ?? value
+            return "\(k)=\(v)"
+        }.joined(separator: "&")
+        return encoded.data(using: .utf8)
+    }
+
     private func exchangeCodeForTokens(code: String) async {
         guard let url = URL(string: tokenUrl) else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        let body = "grant_type=authorization_code&client_id=\(APIConfig.clientId)&client_secret=\(APIConfig.clientSecret)&code=\(code)&redirect_uri=\(APIConfig.redirectUri)"
-        request.httpBody = body.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = formBody([
+            "grant_type": "authorization_code",
+            "client_id": APIConfig.clientId,
+            "client_secret": APIConfig.clientSecret,
+            "code": code,
+            "redirect_uri": APIConfig.redirectUri
+        ])
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
             if let tokens = try? JSONDecoder().decode(TokenResponse.self, from: data) {
@@ -216,9 +259,14 @@ final class AuthService: NSObject, ObservableObject {
         guard let refresh = refreshToken, let url = URL(string: tokenUrl) else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        let body = "grant_type=refresh_token&client_id=\(APIConfig.clientId)&client_secret=\(APIConfig.clientSecret)&refresh_token=\(refresh)"
-        request.httpBody = body.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = formBody([
+            "grant_type": "refresh_token",
+            "client_id": APIConfig.clientId,
+            "client_secret": APIConfig.clientSecret,
+            "refresh_token": refresh
+        ])
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
             if let tokens = try? JSONDecoder().decode(TokenResponse.self, from: data) {
@@ -236,8 +284,8 @@ final class AuthService: NSObject, ObservableObject {
 
 extension AuthService: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            return scene.windows.first { $0.isKeyWindow } ?? ASPresentationAnchor()
+        if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).flatMap({ $0.windows }).first(where: { $0.isKeyWindow }) {
+            return window
         }
         return ASPresentationAnchor()
     }

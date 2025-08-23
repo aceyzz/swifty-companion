@@ -8,8 +8,16 @@ struct CachedProfile: Codable {
 
 actor ProfileCache {
     private let url: URL
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
+    private let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+    private let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
 
     init(login: String, filenamePrefix: String = "profile_cache") {
         let safe = login.replacingOccurrences(of: "[^A-Za-z0-9_-]", with: "_", options: .regularExpression)
