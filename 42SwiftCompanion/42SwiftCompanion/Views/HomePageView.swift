@@ -100,54 +100,48 @@ private struct HomeSection<Content: View>: View {
 }
 
 private struct CampusInfoCard: View {
-    let info: CampusDashboard.Info
-    let activeUsersCount: Int
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Image(systemName: "building.2.fill")
-                Text(info.name).font(.title3.weight(.semibold))
-                Spacer()
-            }
-            if let address = info.addressFull, !address.isEmpty {
-                InfoPillRow(
-                    leading: .system("mappin.and.ellipse"),
-                    title: address,
-                    subtitle: [info.city, info.country].compactMap { $0 }.joined(separator: " • "),
-                    iconTint: .accentColor
-                )
-            }
-            if let site = info.website {
-                InfoPillRow(
-                    leading: .system("link"),
-                    title: "Site web",
-                    subtitle: site.absoluteString,
-                    onTap: { UIApplication.shared.open(site) },
-                    iconTint: .accentColor
-                )
-            }
-            if let users = info.usersCount {
-                InfoPillRow(
-                    leading: .system("person.3.fill"),
-                    title: "Étudiants inscrits",
-                    subtitle: "\(users)",
-                    iconTint: .secondary
-                )
-            }
-            HStack(spacing: 12) {
-                Image(systemName: "wifi")
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Actuellement connectés").font(.caption2).foregroundStyle(.secondary)
-                    Text("\(activeUsersCount)").font(.title3.weight(.semibold))
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color("AccentColor").opacity(0.08)))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color("AccentColor").opacity(0.18), lineWidth: 1))
-        }
-    }
+	let info: CampusDashboard.Info
+	let activeUsersCount: Int
+	var body: some View {
+		VStack(alignment: .leading, spacing: 10) {
+			HStack(spacing: 12) {
+				Image(systemName: "building.2.fill")
+				Text(info.name).font(.title3.weight(.semibold))
+				Spacer()
+			}
+			if let address = info.addressFull, !address.isEmpty {
+				InfoPillRow(
+					leading: .system("mappin.and.ellipse"),
+					title: address,
+					subtitle: [info.city, info.country].compactMap { $0 }.joined(separator: " • "),
+					iconTint: .accentColor
+				)
+			}
+			if let site = info.website {
+				InfoPillRow(
+					leading: .system("link"),
+					title: "Site web",
+					subtitle: site.absoluteString,
+					onTap: { UIApplication.shared.open(site) },
+					iconTint: .accentColor
+				)
+			}
+			if let users = info.usersCount {
+				InfoPillRow(
+					leading: .system("person.3.fill"),
+					title: "Étudiants inscrits",
+					subtitle: "\(users)",
+					iconTint: .accentColor
+				)
+			}
+			InfoPillRow(
+				leading: .system("wifi"),
+				title: "Actuellement connectés",
+				subtitle: "\(activeUsersCount)",
+				iconTint: .accentColor
+			)
+		}
+	}
 }
 
 private struct EventsList: View {
