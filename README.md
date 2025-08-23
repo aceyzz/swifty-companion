@@ -164,16 +164,16 @@ Gestion centralisée des pages et du header Link côté APIClient.
 <div align="center">
 	<table>
 		<tr>
-			<td><img src="./utils/screens/1.png" alt="Screen 1" width="220" style="border-radius:24px;"></td>
-			<td><img src="./utils/screens/2.png" alt="Screen 2" width="220" style="border-radius:24px;"></td>
-			<td><img src="./utils/screens/3.png" alt="Screen 3" width="220" style="border-radius:24px;"></td>
-			<td><img src="./utils/screens/4.png" alt="Screen 4" width="220" style="border-radius:24px;"></td>
+			<td><img src="./utils/screens/1.png" alt="Screen 1" width="220"></td>
+			<td><img src="./utils/screens/2.png" alt="Screen 2" width="220"></td>
+			<td><img src="./utils/screens/3.png" alt="Screen 3" width="220"></td>
+			<td><img src="./utils/screens/4.png" alt="Screen 4" width="220"></td>
 		</tr>
 		<tr>
-			<td><img src="./utils/screens/5.png" alt="Screen 5" width="220" style="border-radius:24px;"></td>
-			<td><img src="./utils/screens/6.png" alt="Screen 6" width="220" style="border-radius:24px;"></td>
-			<td><img src="./utils/screens/7.png" alt="Screen 7" width="220" style="border-radius:24px;"></td>
-			<td><img src="./utils/screens/8.png" alt="Screen 8" width="220" style="border-radius:24px;"></td>
+			<td><img src="./utils/screens/5.png" alt="Screen 5" width="220"></td>
+			<td><img src="./utils/screens/6.png" alt="Screen 6" width="220"></td>
+			<td><img src="./utils/screens/7.png" alt="Screen 7" width="220"></td>
+			<td><img src="./utils/screens/8.png" alt="Screen 8" width="220"></td>
 		</tr>
 	</table>
 </div>
