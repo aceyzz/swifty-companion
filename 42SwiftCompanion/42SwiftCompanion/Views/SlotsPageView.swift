@@ -1,154 +1,343 @@
 import SwiftUI
 import Foundation
+import UIKit
 
 struct SlotsPageView: View {
     @StateObject private var vm = SlotsViewModel()
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("Slots")
-                    .font(.largeTitle.bold())
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        ZStack(alignment: .bottomTrailing) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Header(selectedDay: $vm.selectedDay,
+                           weekdayTitle: vm.weekdayTitle,
+                           dayLongTitle: vm.dayLongTitle,
+                           canGoPrevious: vm.canGoPrevious,
+                           goPrev: { vm.shiftDay(by: -1) },
+                           goNext: { vm.shiftDay(by: +1) })
 
-                SectionCard(title: "") {
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            withAnimation(.snappy) { vm.shiftDay(by: -1) }
-                        }) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 32, weight: .bold))
+                    SectionCard(title: "Mes slots") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ActionBar(isLoading: vm.isLoading,
+                                      lastUpdated: vm.lastUpdated,
+                                      refresh: { Task { await vm.refresh() } })
+
+                            Content(state: vm.state,
+                                    label: vm.label(for:),
+                                    rangeText: vm.rangeText(for:),
+                                    badges: vm.badges(for:),
+                                    tint: vm.iconTint(for:))
                         }
-                        .buttonStyle(.plain)
-                        .opacity(vm.canGoPrevious ? 1.0 : 0)
-                        .disabled(!vm.canGoPrevious)
-
-                        Spacer()
-
-                        VStack(alignment: .center, spacing: 2) {
-                            Text(vm.weekdayTitle).font(.headline)
-                            Text(vm.dayLongTitle).font(.caption).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        Spacer()
-
-                        Button(action: {
-                            withAnimation(.snappy) { vm.shiftDay(by: +1) }
-                        }) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 32, weight: .bold))
-                        }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.vertical, 2)
                 }
+                .padding()
+            }
 
-                SectionCard(title: "Mes slots") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 10) {
-                            Button {
-                                Task { await vm.refresh() }
-                            } label: {
-                                HStack(spacing: 8) {
-                                    if vm.isLoading {
-                                        ProgressView().controlSize(.small)
-                                    } else {
-                                        Image(systemName: "arrow.clockwise")
-                                    }
-                                    Text(vm.isLoading ? "Rafraîchissement…" : "Rafraîchir")
-                                        .font(.callout.weight(.semibold))
-                                }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
-                                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.systemGray6)))
-                            }
-                            .buttonStyle(.plain)
+            CreateFab { vm.openCreateSheet() }
+        }
+        .onAppear { vm.bootstrap() }
+		.onAppear { if case .idle = vm.state { Task { await vm.refresh() }}}
+		.onChange(of: vm.selectedDay) { Task { await vm.refresh() }}
+        .animation(.snappy, value: vm.stateKey)
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $vm.showCreateSheet) {
+            CreateSlotSheet(vm: vm)
+        }
+        .alert(item: $vm.alertItem) { item in
+            Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
+        }
+    }
+}
 
-                            if let updated = vm.lastUpdated {
-                                Spacer()
-                                Text(updated.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+private struct Header: View {
+    @Binding var selectedDay: Date
+    let weekdayTitle: String
+    let dayLongTitle: String
+    let canGoPrevious: Bool
+    let goPrev: () -> Void
+    let goNext: () -> Void
 
-                        switch vm.state {
-                        case .idle:
-                            ContentUnavailableView("Appuie sur « Rafraîchir » pour charger tes créneaux", systemImage: "calendar.badge.clock")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        case .loading:
-                            LoadingListPlaceholder(lines: 3)
-                        case .failed(let message):
-                            RetryRow(title: message) {
-                                Task { await vm.refresh(force: true) }
-                            }
-                        case .loaded(let groups):
-                            if groups.isEmpty {
-                                ContentUnavailableView("Aucun slot pour ce jour", systemImage: "calendar.badge.exclamationmark")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            } else {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    ForEach(groups) { g in
-                                        InfoPillRow(
-                                            leading: .system(g.isReserved ? "calendar.badge.checkmark" : "calendar.badge.clock"),
-                                            title: vm.label(for: g),
-                                            subtitle: vm.rangeText(for: g),
-                                            badges: vm.badges(for: g),
-                                            onTap: nil,
-                                            iconTint: vm.iconTint(for: g)
-                                        )
-                                    }
-                                }
-                            }
-                        }
+    var body: some View {
+        SectionCard(title: "") {
+            HStack(spacing: 12) {
+                Button(action: { withAnimation(.snappy) { goPrev() }}) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 32, weight: .bold))
+                }
+                .buttonStyle(.plain)
+                .opacity(canGoPrevious ? 1 : 0)
+                .disabled(!canGoPrevious)
+
+                Spacer()
+
+                VStack(alignment: .center, spacing: 2) {
+                    Text(weekdayTitle).font(.headline)
+                    Text(dayLongTitle).font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+
+                Spacer()
+
+                Button(action: { withAnimation(.snappy) { goNext() }}) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 32, weight: .bold))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.vertical, 2)
+        }
+    }
+}
+
+private struct ActionBar: View {
+    let isLoading: Bool
+    let lastUpdated: Date?
+    let refresh: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: refresh) {
+                HStack(spacing: 8) {
+                    if isLoading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    Text(isLoading ? "Rafraîchissement…" : "Rafraîchir")
+                        .font(.callout.weight(.semibold))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.systemGray6)))
+            }
+            .buttonStyle(.plain)
+
+            if let updated = lastUpdated {
+                Spacer()
+                Text(updated.formatted(date: .abbreviated, time: .shortened))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct Content: View {
+    let state: SlotsViewModel.State
+    let label: (DisplaySlot) -> String
+    let rangeText: (DisplaySlot) -> String
+    let badges: (DisplaySlot) -> [String]
+    let tint: (DisplaySlot) -> Color
+
+    var body: some View {
+        switch state {
+        case .idle:
+            ContentUnavailableView("Appuie sur « Rafraîchir » pour charger tes créneaux", systemImage: "calendar.badge.clock")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .loading:
+            LoadingListPlaceholder(lines: 3)
+        case .failed(let message):
+            RetryRow(title: message) {}
+        case .loaded(let groups):
+            if groups.isEmpty {
+                ContentUnavailableView("Aucun slot pour ce jour", systemImage: "calendar.badge.exclamationmark")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(groups) { g in
+                        InfoPillRow(
+                            leading: .system(g.isReserved ? "calendar.badge.checkmark" : "calendar.badge.clock"),
+                            title: label(g),
+                            subtitle: rangeText(g),
+                            badges: badges(g),
+                            onTap: nil,
+                            iconTint: tint(g)
+                        )
                     }
                 }
             }
-            .padding()
         }
-        .onAppear { vm.bootstrap() }
-        .animation(.snappy, value: vm.stateKey)
-        .navigationBarTitleDisplayMode(.inline)
     }
+}
+
+private struct CreateFab: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .bold))
+                .padding(18)
+                .background(Circle().fill(Color(.systemGreen)))
+                .foregroundStyle(.white)
+                .shadow(radius: 8, y: 3)
+        }
+        .padding(.trailing, 20)
+        .padding(.bottom, 20)
+        .accessibilityLabel("Poser un slot")
+    }
+}
+
+struct CreateSlotSheet: View {
+    @ObservedObject var vm: SlotsViewModel
+
+    var body: some View {
+        VStack(spacing: 20) {
+            SectionCard(title: "Pose un slot") {
+                VStack(spacing: 14) {
+                    HStack {
+                        Text("Jour")
+                            .font(.body)
+                        Spacer()
+                        DatePicker("", selection: $vm.form.day, in: vm.createDateRange, displayedComponents: [.date])
+                            .labelsHidden()
+                            .disabled(vm.isCreating)
+                    }
+
+                    HStack {
+                        Text("Début")
+                            .font(.body)
+                        Spacer()
+                        DatePicker("", selection: $vm.form.start, in: vm.createStartRange, displayedComponents: [.hourAndMinute])
+                            .labelsHidden()
+                            .disabled(vm.isCreating || vm.createMaxSegments < vm.minSegments)
+                    }
+
+                    HStack {
+                        Text("Durée")
+                        Spacer()
+                        Text(vm.form.durationText).font(.callout.weight(.semibold))
+                    }
+
+                    Stepper(value: $vm.form.segments, in: vm.minSegments...vm.createMaxSegments) {
+                        Text("Segments de 15 min: \(vm.form.segments)")
+                    }
+                    .disabled(vm.isCreating || vm.createMaxSegments < vm.minSegments)
+                }
+            }
+
+            SectionCard(title: "Résumé") {
+                VStack(spacing: 6) {
+                    HStack {
+                        Text("Début")
+                        Spacer()
+                        Text(vm.form.startText).font(.callout.weight(.semibold))
+                    }
+                    HStack {
+                        Text("Fin")
+                        Spacer()
+                        Text(vm.form.endText).font(.callout.weight(.semibold))
+                    }
+                }
+            }
+
+            HStack(spacing: 12) {
+                Button(role: .cancel) { vm.dismissCreateSheet() } label: {
+                    Text("Annuler").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    Task { await vm.confirmCreate() }
+                } label: {
+                    if vm.isCreating {
+                        ProgressView().frame(maxWidth: .infinity)
+                    } else {
+                        Text("Confirmer").frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(vm.isCreating || vm.createMaxSegments < vm.minSegments)
+            }
+        }
+        .padding()
+        .onChange(of: vm.form.day) { vm.syncFormAfterDayChange() }
+        .onChange(of: vm.form.start) { vm.syncFormAfterStartChange() }
+        .onChange(of: vm.form.segments) { vm.syncFormAfterSegmentsChange() }
+        .presentationDragIndicator(.visible)
+        .presentationDetents([.medium, .fraction(0.55)])
+        .overlay(alignment: .top) {
+            if let text = vm.errorBannerText {
+                ErrorBanner(text: text)
+                    .padding(.top, 8)
+                    .padding(.horizontal, 12)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(1)
+            }
+        }
+        .animation(.snappy, value: vm.errorBannerText)
+    }
+}
+
+private struct ErrorBanner: View {
+	let text: String
+	var body: some View {
+		VStack {
+			Text(text)
+				.font(.title3.weight(.bold))
+				.multilineTextAlignment(.center)
+				.foregroundStyle(.white)
+				.padding(.vertical, 16)
+				.padding(.horizontal, 20)
+				.background(
+					RoundedRectangle(cornerRadius: 18, style: .continuous)
+						.fill(Color(.systemRed))
+						.shadow(color: .black.opacity(0.25), radius: 18, y: 8)
+				)
+				.allowsHitTesting(false)
+				.accessibilityLabel("Erreur: \(text)")
+				.padding(.top, 8)
+				.padding(.horizontal, 12)
+			Spacer()
+		}
+	}
 }
 
 @MainActor
 final class SlotsViewModel: ObservableObject {
-    enum State: Equatable {
-        case idle
-        case loading
-        case loaded([DisplaySlot])
-        case failed(String)
+    enum State: Equatable { case idle, loading, loaded([DisplaySlot]), failed(String) }
+
+    struct AlertItem: Identifiable, Equatable {
+        let id = UUID()
+        let title: String
+        let message: String
     }
 
     @Published var selectedDay: Date = Calendar.current.startOfDay(for: Date())
-    @Published var showDatePicker = false
     @Published private(set) var state: State = .idle
     @Published private(set) var lastUpdated: Date?
+
+    @Published var showCreateSheet = false
+    @Published var form = CreateSlotForm()
+    @Published private(set) var isCreating = false
+    @Published var alertItem: AlertItem?
+    @Published var createErrorMessage: String?
+    @Published var errorBannerText: String?
 
     private var fetchTask: Task<Void, Never>?
     private let repo = SlotsRepository.shared
 
     var isLoading: Bool { if case .loading = state { return true } else { return false } }
-
-    var stateKey: String {
-        switch state {
-        case .idle: return "idle"
-        case .loading: return "loading"
-        case .failed: return "failed"
-        case .loaded(let arr): return "loaded_\(arr.count)"
-        }
-    }
+    var stateKey: String { switch state { case .idle: return "idle"; case .loading: return "loading"; case .failed: return "failed"; case .loaded(let arr): return "loaded_\(arr.count)" } }
 
     var todayStart: Date { Calendar.current.startOfDay(for: Date()) }
     var canGoPrevious: Bool { selectedDay > todayStart }
     var dateRange: ClosedRange<Date> { todayStart...Date.distantFuture }
+    var createDateRange: ClosedRange<Date> {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .current
+        let start = todayStart
+        let end = cal.date(byAdding: .day, value: 14, to: start) ?? start
+        return start...end
+    }
 
     func bootstrap() {}
 
-    func setToday() {
-        selectedDay = todayStart
+    private func hasOverlap(existing: [EvaluationSlot], begin: Date, end: Date) -> Bool {
+        for s in existing {
+            guard let sb = DateParser.iso(s.begin_at), let se = DateParser.iso(s.end_at) else { continue }
+            if begin < se && end > sb { return true }
+        }
+        return false
     }
 
     func shiftDay(by delta: Int) {
@@ -169,9 +358,18 @@ final class SlotsViewModel: ObservableObject {
             guard let self else { return }
             do {
                 let raw = try await repo.myEvaluationSlots(forDay: day)
-                await repo.debugPrintSlots(forDay: day)
+                await debugPrintSlots(forDay: day)
                 if Task.isCancelled { return }
-                var groups = self.mergeContiguous(raw)
+
+                var cal = Calendar(identifier: .gregorian)
+                cal.timeZone = .current
+                let nextDay = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: day))!
+                let filtered = raw.filter { s in
+                    guard let b = DateParser.iso(s.begin_at) else { return false }
+                    return b < nextDay
+                }
+
+                var groups = Self.mergeContiguous(filtered)
                 let ids = Set(groups.compactMap(\.scaleTeamId))
                 if !ids.isEmpty {
                     let details = await repo.fetchScaleTeamsDetails(ids: Array(ids))
@@ -181,19 +379,130 @@ final class SlotsViewModel: ObservableObject {
                         }
                     }
                 }
-                self.state = .loaded(groups)
-                self.lastUpdated = Date()
+                state = .loaded(groups)
+                lastUpdated = Date()
             } catch {
                 if Task.isCancelled { return }
-                self.state = .failed("Impossible de charger les slots")
+                state = .failed("Impossible de charger les slots")
             }
         }
     }
 
-    private func mergeContiguous(_ slots: [EvaluationSlot]) -> [DisplaySlot] {
+    func label(for group: DisplaySlot) -> String { group.isReserved ? "Réservé" : "Disponible" }
+
+    func rangeText(for group: DisplaySlot) -> String {
+        guard let s = group.begin, let e = group.end else { return "Heure inconnue" }
+        return Self.dayShortFormatter.string(from: s).capitalized + " • " +
+            Self.hourFormatter.string(from: s) + " – " + Self.hourFormatter.string(from: e)
+    }
+
+    func badges(for group: DisplaySlot) -> [String] {
+        var b: [String] = []
+        b.append(group.isReserved ? "Réservé" : "Libre")
+        if let id = group.scaleTeamId, group.isReserved { b.append("Équipe #\(id)") }
+        if group.slotIds.count > 1 { b.append("\(group.slotIds.count) segments") }
+        if let s = group.begin, let e = group.end {
+            let secs = Int(e.timeIntervalSince(s))
+            if secs > 0 {
+                let h = secs / 3600
+                let m = (secs % 3600) / 60
+                if h > 0 && m > 0 { b.append("\(h) h \(m) min") }
+                else if h > 0 { b.append("\(h) h") }
+                else { b.append("\(m) min") }
+            }
+        }
+        return b
+    }
+
+    func iconTint(for group: DisplaySlot) -> Color { group.isReserved ? .red : .green }
+
+    var minSegments: Int { 1 }
+
+    var createStartRange: ClosedRange<Date> {
+        let minStart = repo.anchorBegin(forDay: form.day)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .current
+        let endOfDay = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: form.day)) ?? form.day
+        let latestStart = endOfDay.addingTimeInterval(-900)
+        return minStart...latestStart
+    }
+
+    var createMaxSegments: Int {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .current
+        let endOfDay = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: form.day)) ?? form.day
+        let seconds = max(0, endOfDay.timeIntervalSince(form.start))
+        return max(0, Int(floor(seconds / 900)))
+    }
+
+    func openCreateSheet() {
+        createErrorMessage = nil
+        errorBannerText = nil
+        form.day = selectedDay
+        let anchor = repo.anchorBegin(forDay: form.day)
+        form.start = max(anchor, Date()).snappedToQuarterHour()
+        form.segments = min(max(minSegments, 1), max(minSegments, createMaxSegments))
+        showCreateSheet = true
+    }
+
+    func dismissCreateSheet() {
+        showCreateSheet = false
+        createErrorMessage = nil
+        errorBannerText = nil
+    }
+
+    func confirmCreate() async {
+        if isCreating { return }
+        if createMaxSegments < minSegments { presentCreateError("Plage invalide pour créer un slot (min. 15 min)."); return }
+        isCreating = true
+        createErrorMessage = nil
+        errorBannerText = nil
+        defer { isCreating = false }
+        do {
+            let existing = try await repo.myEvaluationSlots(forDay: form.day)
+            let begin = form.start.snappedToQuarterHour()
+            let end = form.end(forSegments: form.segments).snappedToQuarterHour()
+            if hasOverlap(existing: existing, begin: begin, end: end) {
+                presentCreateError("Ce créneau chevauche un autre slot.")
+                return
+            }
+            do {
+                let created = try await repo.createEvaluationSlot(begin: begin, end: end)
+                await debugPrintCreatedSlot(created)
+                await MainActor.run { self.showCreateSheet = false }
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                await refresh(force: true)
+            } catch {
+                presentCreateError(describeCreateFailure(begin: begin, end: end, error: error))
+            }
+        } catch {
+            presentCreateError("Impossible de charger les slots existants.")
+        }
+    }
+
+    func syncFormAfterDayChange() {
+        let minStart = repo.anchorBegin(forDay: form.day)
+        form.start = max(minStart, form.start).snappedToQuarterHour()
+        if createMaxSegments < form.segments { form.segments = max(minSegments, createMaxSegments) }
+    }
+
+    func syncFormAfterStartChange() {
+        let snapped = form.start.snappedToQuarterHour()
+        if snapped != form.start { form.start = snapped }
+        if createMaxSegments < form.segments { form.segments = max(minSegments, createMaxSegments) }
+    }
+
+    func syncFormAfterSegmentsChange() {
+        if createMaxSegments < form.segments { form.segments = max(minSegments, createMaxSegments) }
+    }
+
+    var weekdayTitle: String { Self.weekdayFormatter.string(from: selectedDay).capitalized }
+    var dayLongTitle: String { Self.dayFormatter.string(from: selectedDay).capitalized }
+
+    private static func mergeContiguous(_ slots: [EvaluationSlot]) -> [DisplaySlot] {
         let items = slots.compactMap { s -> (EvaluationSlot, Date, Date, Bool, Int?)? in
             guard let b = DateParser.iso(s.begin_at), let e = DateParser.iso(s.end_at) else { return nil }
-            let stid = scaleTeamId(from: s.scale_team)
+            let stid = Self.scaleTeamId(from: s.scale_team)
             let reserved = stid != nil
             return (s, b, e, reserved, stid)
         }
@@ -208,6 +517,7 @@ final class SlotsViewModel: ObservableObject {
         var currentEnd: Date?
         var currentReserved: Bool?
         var currentScaleTeamId: Int?
+
         for it in items {
             if currentIds.isEmpty {
                 currentIds = [it.0.id]
@@ -235,23 +545,20 @@ final class SlotsViewModel: ObservableObject {
         return out
     }
 
-    private func scaleTeamId(from value: JSONValue?) -> Int? {
+    private static func scaleTeamId(from value: JSONValue?) -> Int? {
         guard let v = value else { return nil }
         switch v {
-        case .number(let d):
-            return Int(d)
-        case .string(let s):
-            return Int(s)
+        case .number(let d): return Int(d)
+        case .string(let s): return Int(s)
         case .object(let o):
             if case .number(let d)? = o["id"] { return Int(d) }
             if case .string(let s)? = o["id"] { return Int(s) }
             return nil
-        default:
-            return nil
+        default: return nil
         }
     }
 
-    private var dayFormatter: DateFormatter = {
+    private static var dayFormatter: DateFormatter = {
         let df = DateFormatter()
         df.calendar = Calendar(identifier: .gregorian)
         df.locale = Locale.current
@@ -259,7 +566,15 @@ final class SlotsViewModel: ObservableObject {
         return df
     }()
 
-    private var weekdayFormatter: DateFormatter = {
+    private static var dayShortFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.calendar = Calendar(identifier: .gregorian)
+        df.locale = Locale.current
+        df.dateFormat = "EEE d MMM"
+        return df
+    }()
+
+    private static var weekdayFormatter: DateFormatter = {
         let df = DateFormatter()
         df.calendar = Calendar(identifier: .gregorian)
         df.locale = Locale.current
@@ -267,7 +582,7 @@ final class SlotsViewModel: ObservableObject {
         return df
     }()
 
-    private var hourFormatter: DateFormatter = {
+    fileprivate static var hourFormatter: DateFormatter = {
         let df = DateFormatter()
         df.calendar = Calendar(identifier: .gregorian)
         df.locale = Locale.current
@@ -276,39 +591,32 @@ final class SlotsViewModel: ObservableObject {
         return df
     }()
 
-    var weekdayTitle: String { weekdayFormatter.string(from: selectedDay).capitalized }
-    var dayLongTitle: String { dayFormatter.string(from: selectedDay).capitalized }
-
-    func rangeText(for group: DisplaySlot) -> String {
-        guard let s = group.begin, let e = group.end else { return "Heure inconnue" }
-        return "\(hourFormatter.string(from: s)) – \(hourFormatter.string(from: e))"
-    }
-
-    func label(for group: DisplaySlot) -> String {
-        group.isReserved ? "Réservé" : "Disponible"
-    }
-
-    func badges(for group: DisplaySlot) -> [String] {
-        var b: [String] = []
-        b.append(group.isReserved ? "Réservé" : "Libre")
-        if let id = group.scaleTeamId, group.isReserved { b.append("Équipe #\(id)") }
-        if group.slotIds.count > 1 { b.append("\(group.slotIds.count) segments") }
-        if let s = group.begin, let e = group.end {
-            let secs = Int(e.timeIntervalSince(s))
-            if secs > 0 {
-                let h = secs / 3600
-                let m = (secs % 3600) / 60
-                if h > 0 && m > 0 { b.append("\(h) h \(m) min") }
-                else if h > 0 { b.append("\(h) h") }
-                else { b.append("\(m) min") }
-            }
+    private func presentCreateError(_ message: String) {
+        createErrorMessage = message
+        errorBannerText = message
+        Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if self.errorBannerText == message { self.errorBannerText = nil }
         }
-        return b
     }
+}
 
-    func iconTint(for group: DisplaySlot) -> Color {
-        group.isReserved ? .red : .green
+@MainActor
+struct CreateSlotForm: Equatable {
+    var day: Date = Calendar.current.startOfDay(for: Date())
+    var start: Date = Date()
+    var segments: Int = 2
+    var startText: String { SlotsViewModel.hourFormatter.string(from: start) }
+    var endText: String { SlotsViewModel.hourFormatter.string(from: end(forSegments: segments)) }
+    var durationText: String {
+        let mins = segments * 15
+        let h = mins / 60
+        let m = mins % 60
+        if h > 0 && m > 0 { return "\(h) h \(m) min" }
+        if h > 0 { return "\(h) h" }
+        return "\(m) min"
     }
+    func end(forSegments segments: Int) -> Date { start.addingTimeInterval(TimeInterval(segments) * 900) }
 }
 
 struct DisplaySlot: Identifiable, Equatable {
@@ -321,7 +629,7 @@ struct DisplaySlot: Identifiable, Equatable {
     var scaleTeam: JSONValue?
 }
 
-struct EvaluationSlot: Decodable, Identifiable, Equatable {
+struct EvaluationSlot: Codable, Identifiable, Equatable {
     let id: Int
     let begin_at: String?
     let end_at: String?
@@ -366,32 +674,64 @@ enum JSONValue: Codable, Equatable {
     }
 }
 
+private struct Me: Decodable { let id: Int }
+
 final class SlotsRepository {
     static let shared = SlotsRepository()
     private let api = APIClient.shared
+    private var cachedUserId: Int?
 
-    func myEvaluationSlots(forDay day: Date, timeZone: TimeZone = .current) async throws -> [EvaluationSlot] {
+    private func currentUserId() async throws -> Int {
+        if let cachedUserId { return cachedUserId }
+        let me = try await api.request(Endpoint(path: "/v2/me"), as: Me.self)
+        cachedUserId = me.id
+        return me.id
+    }
+
+    func anchorBegin(forDay day: Date, timeZone: TimeZone = .current) -> Date {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = timeZone
         let now = Date()
         let startOfDay = cal.startOfDay(for: day)
+        if cal.isDate(day, inSameDayAs: now) {
+            let lead = now.addingTimeInterval(30 * 60)
+            let zeroSec = cal.date(bySetting: .second, value: 0, of: lead) ?? lead
+            let minute = cal.component(.minute, from: zeroSec)
+            let add = (15 - (minute % 15)) % 15
+            return cal.date(byAdding: .minute, value: add, to: zeroSec) ?? zeroSec
+        } else {
+            return startOfDay
+        }
+    }
+
+    func myEvaluationSlots(forDay day: Date, timeZone: TimeZone = .current) async throws -> [EvaluationSlot] {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = timeZone
+        let startOfDay = cal.startOfDay(for: day)
         let end = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-        let begin: Date = {
-            if cal.isDate(day, inSameDayAs: now) {
-                let lead = now.addingTimeInterval(30 * 60)
-                let zeroSec = cal.date(bySetting: .second, value: 0, of: lead) ?? lead
-                let minute = cal.component(.minute, from: zeroSec)
-                let add = (15 - (minute % 15)) % 15
-                return cal.date(byAdding: .minute, value: add, to: zeroSec) ?? zeroSec
-            } else {
-                return startOfDay
-            }
-        }()
+        let begin = anchorBegin(forDay: day, timeZone: timeZone)
         let items = [
             URLQueryItem(name: "range[begin_at]", value: "\(DateParser.isoString(begin)),\(DateParser.isoString(end))"),
             URLQueryItem(name: "page[size]", value: "100")
         ]
         let ep = Endpoint(path: "/v2/me/slots", queryItems: items)
+        return try await api.request(ep, as: [EvaluationSlot].self)
+    }
+
+    func createEvaluationSlot(begin: Date, end: Date) async throws -> [EvaluationSlot] {
+        let uid = try await currentUserId()
+        let payload: [String: Any] = [
+            "slot": [
+                "user_id": uid,
+                "begin_at": DateParser.isoString(begin),
+                "end_at": DateParser.isoString(end)
+            ]
+        ]
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
+        let ep = Endpoint(path: "/v2/slots",
+                        method: .post,
+                        headers: ["Content-Type": "application/json"],
+                        body: body)
         return try await api.request(ep, as: [EvaluationSlot].self)
     }
 
@@ -405,7 +745,7 @@ final class SlotsRepository {
             for id in ids {
                 group.addTask {
                     let val = try? await self.scaleTeam(id: id)
-                    if let val { self.debugPrintScaleTeam(id: id, payload: val) }
+                    if let val { await debugPrintScaleTeam(id: id, payload: val) }
                     return (id, val)
                 }
             }
@@ -415,54 +755,121 @@ final class SlotsRepository {
         }
         return result
     }
+}
 
-	func debugPrintSlots(forDay day: Date, timeZone: TimeZone = .current) async {
-		var cal = Calendar(identifier: .gregorian)
-		cal.timeZone = timeZone
-		let now = Date()
-		let startOfDay = cal.startOfDay(for: day)
-		let end = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-		let begin: Date = {
-			if cal.isDate(day, inSameDayAs: now) {
-				let lead = now.addingTimeInterval(30 * 60)
-				let zeroSec = cal.date(bySetting: .second, value: 0, of: lead) ?? lead
-				let minute = cal.component(.minute, from: zeroSec)
-				let add = (15 - (minute % 15)) % 15
-				return cal.date(byAdding: .minute, value: add, to: zeroSec) ?? zeroSec
-			} else {
-				return startOfDay
-			}
-		}()
-		let items = [
-			URLQueryItem(name: "range[begin_at]", value: "\(DateParser.isoString(begin)),\(DateParser.isoString(end))"),
-			URLQueryItem(name: "page[size]", value: "100")
-		]
-		let ep = Endpoint(path: "/v2/me/slots", queryItems: items)
-		do {
-			let raw: [JSONValue] = try await api.request(ep, as: [JSONValue].self)
-			var output = ""
-			var count = 0
-			for slot in raw {
-				if case .object(let dict) = slot {
-					let beginAt = dict["begin_at"] ?? .null
-					let endAt = dict["end_at"] ?? .null
-					let id = dict["id"] ?? .null
-					let scaleTeam = dict["scale_team"] ?? .null
-					count += 1
-					output += "##### SLOT \(count) #####\nid: \(id)\nbegin_at: \(beginAt)\nend_at: \(endAt)\nscale_team: \(scaleTeam)\n\n"
-				}
-			}
-			print("==== /v2/me/slots KEYS ====\n\(output)===========================")
-		} catch {
-			print("==== /v2/me/slots RAW ERROR ====\n\(error)\n================================")
-		}
-	}
+private extension Date {
+    func snappedToQuarterHour() -> Date {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .current
+        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: self)
+        let minutes = comps.minute ?? 0
+        let snapped = minutes - (minutes % 15)
+        return cal.date(bySettingHour: comps.hour ?? 0, minute: snapped, second: 0, of: self) ?? self
+    }
+}
 
-    func debugPrintScaleTeam(id: Int, payload: JSONValue) {
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        if let data = try? enc.encode(payload), let text = String(data: data, encoding: .utf8) {
-            print("==== /v2/scale_teams/\(id) RAW ====\n\(text)\n====================================")
+@MainActor
+func debugPrintSlots(forDay day: Date, timeZone: TimeZone = .current) async {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = timeZone
+    let repo = SlotsRepository.shared
+    let startOfDay = cal.startOfDay(for: day)
+    let end = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+    let begin = repo.anchorBegin(forDay: day, timeZone: timeZone)
+    let items = [
+        URLQueryItem(name: "range[begin_at]", value: "\(DateParser.isoString(begin)),\(DateParser.isoString(end))"),
+        URLQueryItem(name: "page[size]", value: "100")
+    ]
+    let ep = Endpoint(path: "/v2/me/slots", queryItems: items)
+    do {
+        let raw: [JSONValue] = try await APIClient.shared.request(ep, as: [JSONValue].self)
+        var output = ""
+        var count = 0
+        for slot in raw {
+            if case .object(let dict) = slot {
+                let beginAt = dict["begin_at"] ?? .null
+                let endAt = dict["end_at"] ?? .null
+                let id = dict["id"] ?? .null
+                let scaleTeam = dict["scale_team"] ?? .null
+                count += 1
+                output += "##### SLOT \(count) #####\nid: \(id)\nbegin_at: \(beginAt)\nend_at: \(endAt)\nscale_team: \(scaleTeam)\n\n"
+            }
         }
+        print("==== /v2/me/slots KEYS ====\n\(output)===========================")
+    } catch {
+        print("==== /v2/me/slots RAW ERROR ====\n\(error)\n================================")
+    }
+}
+
+@MainActor
+func debugPrintScaleTeam(id: Int, payload: JSONValue) async {
+    let enc = JSONEncoder()
+    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    if let data = try? enc.encode(payload), let text = String(data: data, encoding: .utf8) {
+        print("==== /v2/scale_teams/\(id) RAW ====\n\(text)\n====================================")
+    }
+}
+
+@MainActor
+func debugPrintCreatedSlot(_ slots: [EvaluationSlot]) async {
+    let enc = JSONEncoder()
+    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    if let data = try? enc.encode(slots), let text = String(data: data, encoding: .utf8) {
+        print("==== CREATED /v2/slots ====\n\(text)\n===========================")
+    }
+}
+
+func describeCreateFailure(begin: Date, end: Date, error: Error) -> String {
+    let isoBegin = DateParser.isoString(begin)
+    let isoEnd = DateParser.isoString(end)
+
+    func readable(from body: String?) -> String? {
+        guard let body, let data = body.data(using: .utf8) else { return nil }
+        if let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let s = dict["error"] as? String { return s }
+            if let s = dict["message"] as? String { return s }
+            if let errs = dict["errors"] as? [String: Any], !errs.isEmpty {
+                let parts = errs.flatMap { key, val -> [String] in
+                    if let arr = val as? [String] { return arr.map { "\(key): \($0)" } }
+                    if let s = val as? String { return ["\(key): \(s)"] }
+                    return []
+                }
+                if !parts.isEmpty { return parts.joined(separator: "\n") }
+            }
+        }
+        return body
+    }
+
+    switch error {
+    case let apiErr as APIError:
+        switch apiErr {
+        case .unauthorized:
+            print("==== CREATE /v2/slots FAILED ====\nPayload: {\"slot\":{\"begin_at\":\"\(isoBegin)\",\"end_at\":\"\(isoEnd)\"}}\nError: UNAUTHORIZED\n==================================")
+            return "Authentification requise. Réessaie après t’être reconnecté."
+        case .rateLimited(let retry):
+            print("==== CREATE /v2/slots FAILED ====\nPayload: {\"slot\":{\"begin_at\":\"\(isoBegin)\",\"end_at\":\"\(isoEnd)\"}}\nError: RATE_LIMITED retryAfter=\(retry ?? 0)\n==================================")
+            return "Trop de requêtes. Réessaie dans quelques instants."
+        case .http(let status, let body):
+            let msg = readable(from: body)
+            print("==== CREATE /v2/slots FAILED ====\nPayload: {\"slot\":{\"begin_at\":\"\(isoBegin)\",\"end_at\":\"\(isoEnd)\"}}\nStatus: \(status)\nBody: \(body ?? "<empty>")\n==================================")
+            if let msg, !msg.isEmpty { return msg }
+            if status == 422 { return "Paramètres invalides pour le slot." }
+            if status == 403 { return "Tu n’as pas les droits pour créer un slot." }
+            return "Erreur serveur (\(status))."
+        case .decoding(let e):
+            print("==== CREATE /v2/slots FAILED ====\nPayload: {\"slot\":{\"begin_at\":\"\(isoBegin)\",\"end_at\":\"\(isoEnd)\"}}\nDecoding: \(e)\n==================================")
+            return "Réponse invalide du serveur."
+        case .transport(let e):
+            print("==== CREATE /v2/slots FAILED ====\nPayload: {\"slot\":{\"begin_at\":\"\(isoBegin)\",\"end_at\":\"\(isoEnd)\"}}\nTransport: \(e)\n==================================")
+            switch e.code {
+            case .notConnectedToInternet: return "Pas de connexion Internet."
+            case .timedOut: return "Délai dépassé."
+            default: return "Erreur réseau (\(e.code.rawValue))."
+            }
+        }
+    default:
+        let ns = error as NSError
+        print("==== CREATE /v2/slots FAILED ====\nPayload: {\"slot\":{\"begin_at\":\"\(isoBegin)\",\"end_at\":\"\(isoEnd)\"}}\nError: [\(ns.domain)#\(ns.code)] \(ns.localizedDescription)\n==================================")
+        return "La création du slot a échoué. \(ns.localizedDescription)"
     }
 }
