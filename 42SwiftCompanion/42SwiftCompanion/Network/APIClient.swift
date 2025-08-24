@@ -1,12 +1,24 @@
 import Foundation
 
 struct Endpoint {
+    enum HTTPMethod: String { case get = "GET", post = "POST", patch = "PATCH", delete = "DELETE" }
+
     let path: String
     let queryItems: [URLQueryItem]
+    var method: HTTPMethod
+    var headers: [String: String]
+    var body: Data?
 
-    init(path: String, queryItems: [URLQueryItem] = []) {
+    init(path: String,
+         queryItems: [URLQueryItem] = [],
+         method: HTTPMethod = .get,
+         headers: [String: String] = [:],
+         body: Data? = nil) {
         self.path = path
         self.queryItems = queryItems
+        self.method = method
+        self.headers = headers
+        self.body = body
     }
 
     func urlRequest(token: String) -> URLRequest? {
@@ -17,8 +29,11 @@ struct Endpoint {
         if !queryItems.isEmpty { comps.queryItems = queryItems }
         guard let url = comps.url else { return nil }
         var req = URLRequest(url: url)
+        req.httpMethod = method.rawValue
+        req.httpBody = body
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        headers.forEach { k, v in req.setValue(v, forHTTPHeaderField: k) }
         req.timeoutInterval = 30
         return req
     }
