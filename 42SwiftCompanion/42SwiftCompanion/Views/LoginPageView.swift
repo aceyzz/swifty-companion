@@ -6,7 +6,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            RadialGradient(colors: [.accentColor.opacity(0.22), .clear], center: .center, startRadius: 0, endRadius: 500)
+            RadialGradient(colors: [Color("AccentColor").opacity(0.22), .clear], center: .center, startRadius: 0, endRadius: 500)
                 .ignoresSafeArea()
             VStack {
                 Spacer()
@@ -62,6 +62,7 @@ struct LoginView: View {
                 .padding(.bottom, 100)
             }
         }
+        .tint(Color("AccentColor"))
     }
 
     private var appName: String {

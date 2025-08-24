@@ -3,7 +3,7 @@ import SwiftUI
 struct BootView: View {
     var body: some View {
         ZStack {
-            RadialGradient(colors: [.accentColor.opacity(0.2), .clear], center: .center, startRadius: 0, endRadius: 500)
+            RadialGradient(colors: [Color("AccentColor").opacity(0.2), .clear], center: .center, startRadius: 0, endRadius: 500)
                 .ignoresSafeArea()
             VStack(spacing: 16) {
                 VStack(spacing: 8) {
@@ -14,6 +14,7 @@ struct BootView: View {
             }
             .padding(.horizontal, 24)
         }
+        .tint(Color("AccentColor"))
     }
 
     private var appName: String {

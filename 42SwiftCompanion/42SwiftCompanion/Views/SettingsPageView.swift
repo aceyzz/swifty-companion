@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
+	@EnvironmentObject var theme: Theme
     @State private var showLogoutConfirm = false
     @State private var tick = false
 
@@ -20,7 +21,7 @@ struct SettingsView: View {
                                 subtitle: "Connecté",
                                 badges: [],
                                 onTap: nil,
-                                iconTint: .accentColor
+                                iconTint: nil
                             )
                             if let exp = authService.tokenExpiration {
                                 InfoPillRow(
@@ -44,28 +45,41 @@ struct SettingsView: View {
                         }
                     }
 
-                    SectionCard(title: "Application") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            InfoPillRow(
-                                leading: .system("app.badge.fill"),
-                                title: appName,
-                                subtitle: "Version \(appVersion)",
-                                badges: [],
-                                onTap: nil,
-                                iconTint: .accentColor
-                            )
-                            if let bundle = Bundle.main.bundleIdentifier {
-                                InfoPillRow(
-                                    leading: .system("chevron.left.forwardslash.chevron.right"),
-                                    title: "Identifiant du bundle",
-                                    subtitle: bundle,
-                                    badges: [],
-                                    onTap: nil,
-                                    iconTint: .secondary
-                                )
-                            }
-                        }
-                    }
+					SectionCard(title: "Application") {
+						VStack(alignment: .leading, spacing: 10) {
+							InfoPillRow(
+								leading: .system("app.badge.fill"),
+								title: appName,
+								subtitle: "Version \(appVersion)",
+								badges: [],
+								onTap: nil,
+								iconTint: nil
+							)
+							if let bundle = Bundle.main.bundleIdentifier {
+								InfoPillRow(
+									leading: .system("chevron.left.forwardslash.chevron.right"),
+									title: "Identifiant du bundle",
+									subtitle: bundle,
+									badges: [],
+									onTap: nil,
+									iconTint: nil
+								)
+							}
+							InfoPillRow(
+								leading: .system("exclamationmark.bubble.fill"),
+								title: "Soumettre un bug",
+								subtitle: nil,
+								badges: [],
+                                onTap: {
+                                    let encoded = "cedmulle@student.42lausanne.ch".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+                                    if let encoded, let url = URL(string: "mailto:\(encoded)") {
+                                        UIApplication.shared.open(url)
+                                    }
+                                },
+								iconTint: nil
+							)
+						}
+					}
 
                     SectionCard(title: "Session") {
                         VStack(spacing: 12) {
@@ -95,15 +109,16 @@ struct SettingsView: View {
                         }
                     }
 
-                    Spacer(minLength: 32)
-
                     HStack {
                         Spacer()
                         Link(destination: URL(string: "https://profile.intra.42.fr/users/cedmulle")!) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "person.crop.circle").font(.subheadline)
-                                Text("Créé par cedmulle").font(.footnote).foregroundStyle(.secondary)
-                            }
+							HStack(spacing: 6) {
+								Image(systemName: "person.crop.circle").font(.subheadline)
+								Text("Créé par cedmulle").font(.footnote).foregroundStyle(.secondary)
+								Image(systemName: "arrow.up.right.square")
+									.font(.footnote)
+									.foregroundStyle(theme.accentColor)
+							}
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                             .background(Capsule().fill(Color(.systemGray6)))

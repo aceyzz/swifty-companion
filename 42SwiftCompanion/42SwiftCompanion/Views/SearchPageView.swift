@@ -88,6 +88,7 @@ struct SearchView: View {
 }
 
 struct ClassicSearchField: View {
+    @EnvironmentObject var theme: Theme
     @Binding var text: String
     let isLoading: Bool
     let onSubmit: () -> Void
@@ -126,8 +127,8 @@ struct ClassicSearchField: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color("AccentColor").opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color("AccentColor").opacity(0.18), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(theme.accentColor.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(theme.accentColor.opacity(0.18), lineWidth: 1))
     }
 }
 

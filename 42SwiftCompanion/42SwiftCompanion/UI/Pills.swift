@@ -6,6 +6,8 @@ struct InfoPillRow: View {
         case system(String)
     }
 
+    @EnvironmentObject var theme: Theme
+
     let leading: Leading?
     let title: String
     let subtitle: String?
@@ -59,8 +61,8 @@ struct InfoPillRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color("AccentColor").opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color("AccentColor").opacity(0.18), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(theme.accentColor.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(theme.accentColor.opacity(0.18), lineWidth: 1))
     }
 
     @ViewBuilder
@@ -73,7 +75,7 @@ struct InfoPillRow: View {
             Image(systemName: name)
                 .foregroundStyle(iconTint ?? .primary)
                 .frame(width: 34, height: 34)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill((iconTint ?? Color("AccentColor")).opacity(0.12)))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill((iconTint ?? theme.accentColor).opacity(0.12)))
         case .none:
             RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.2)).frame(width: 34, height: 34)
         }
@@ -81,6 +83,7 @@ struct InfoPillRow: View {
 }
 
 struct CapsuleBadge: View {
+    @EnvironmentObject var theme: Theme
     let text: String
     var tint: Color? = nil
     var body: some View {
@@ -89,7 +92,7 @@ struct CapsuleBadge: View {
             .foregroundStyle(tint ?? .primary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill((tint ?? Color("AccentColor")).opacity(0.1)))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke((tint ?? Color("AccentColor")).opacity(0.2), lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill((tint ?? theme.accentColor).opacity(0.1)))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke((tint ?? theme.accentColor).opacity(0.2), lineWidth: 1))
     }
 }

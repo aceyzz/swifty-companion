@@ -180,6 +180,7 @@ final class AuthService: NSObject, ObservableObject {
         cancelRefreshLoop()
         ProfileStore.shared.stop()
         session = nil
+        Theme.shared.reset()
     }
 
     private func startRefreshLoop() async {

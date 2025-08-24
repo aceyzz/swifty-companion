@@ -4,6 +4,7 @@ import SwiftUI
 struct _2SwiftCompanionApp: App {
     @StateObject private var authService = AuthService.shared
     @StateObject private var profileStore = ProfileStore.shared
+    @StateObject private var theme = Theme.shared
 
     var body: some Scene {
         WindowGroup {
@@ -11,15 +12,20 @@ struct _2SwiftCompanionApp: App {
                 switch authService.phase {
                 case .unknown:
                     BootView()
+                        .tint(Color("AccentColor"))
                 case .authenticated:
                     MainTabView()
                         .environmentObject(authService)
                         .environmentObject(profileStore)
+                        .environmentObject(theme)
                 case .unauthenticated:
                     LoginView()
                         .environmentObject(authService)
+                        .tint(Color("AccentColor"))
                 }
             }
+            .tint(theme.accentColor)
+            .environmentObject(theme)
             .onAppear { authService.checkAuthentication() }
             .onChange(of: authService.isAuthenticated) { _, newValue in
                 if newValue, !authService.currentLogin.isEmpty { profileStore.start(for: authService.currentLogin) }

@@ -226,6 +226,7 @@ private struct HomeSection<Content: View>: View {
 }
 
 private struct CampusInfoCard: View {
+	@EnvironmentObject var theme: Theme
     let info: CampusDashboard.Info
     let activeUsersCount: Int
     var body: some View {
@@ -240,7 +241,7 @@ private struct CampusInfoCard: View {
                     leading: .system("mappin.and.ellipse"),
                     title: address,
                     subtitle: [info.city, info.country].compactMap { $0 }.joined(separator: " • "),
-                    iconTint: .accentColor
+                    iconTint: nil
                 )
             }
             if let site = info.website {
@@ -249,7 +250,7 @@ private struct CampusInfoCard: View {
                     title: "Site web",
                     subtitle: site.absoluteString,
                     onTap: { UIApplication.shared.open(site) },
-                    iconTint: .accentColor
+                    iconTint: nil
                 )
             }
             if let users = info.usersCount {
@@ -257,20 +258,21 @@ private struct CampusInfoCard: View {
                     leading: .system("person.3.fill"),
                     title: "Étudiants inscrits",
                     subtitle: "\(users)",
-                    iconTint: .accentColor
+                    iconTint: nil
                 )
             }
             InfoPillRow(
                 leading: .system("wifi"),
                 title: "Actuellement connectés",
                 subtitle: "\(activeUsersCount)",
-                iconTint: .accentColor
+                iconTint: nil
             )
         }
     }
 }
 
 private struct EventsList: View {
+	@EnvironmentObject var theme: Theme
     let events: [CampusDashboard.Event]
     @State private var presented: CampusDashboard.Event?
 
@@ -295,14 +297,19 @@ private struct EventsList: View {
 }
 
 private struct EventDetailSheet: View {
+    @EnvironmentObject var theme: Theme
     let event: CampusDashboard.Event
+
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 12) {
                     Image(systemName: "calendar.badge.clock")
                         .frame(width: 48, height: 48)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color("AccentColor").opacity(0.12)))
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(theme.accentColor.opacity(0.12))
+                        )
                     VStack(alignment: .leading, spacing: 4) {
                         Text(event.title).font(.title3).bold()
                         Text(event.when).font(.footnote).foregroundStyle(.secondary)

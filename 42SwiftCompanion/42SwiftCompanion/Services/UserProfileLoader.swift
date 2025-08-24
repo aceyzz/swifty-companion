@@ -16,6 +16,9 @@ final class ProfileStore: ObservableObject {
         if let l = loader, l.login == login { return }
         loader?.stop()
         let l = UserProfileLoader(login: login)
+        l.onCoalitionsColor = { hex in
+            Theme.shared.apply(hex: hex)
+        }
         loader = l
         l.start()
     }
@@ -24,6 +27,7 @@ final class ProfileStore: ObservableObject {
         loader?.clearCache()
         loader?.stop()
         loader = nil
+        Theme.shared.reset()
     }
 }
 
@@ -35,10 +39,10 @@ final class UserProfileLoader: ObservableObject {
         case loaded
         case failed
     }
-
     let login: String
     let autoRefresh: Bool
     let daysWindow: Int
+    var onCoalitionsColor: ((String?) -> Void)?
 
     @Published private(set) var profile: UserProfile? { didSet { lastUpdated = Date() } }
     @Published private(set) var lastUpdated: Date?
@@ -117,6 +121,10 @@ final class UserProfileLoader: ObservableObject {
         projectsState = (cached.profile.finishedProjects.isEmpty && cached.profile.activeProjects.isEmpty) ? .loading : (isPriming ? .loading : .loaded)
         hostState = cached.profile.currentHost == nil ? .loading : (isPriming ? .loading : .loaded)
         logState = cached.logs == nil ? .loading : (isPriming ? .loading : .loaded)
+
+        if !cached.profile.coalitions.isEmpty {
+            onCoalitionsColor?(bestCoalitionHex(from: cached.profile))
+        }
     }
 
     private func beginRefreshing() {
@@ -141,6 +149,10 @@ final class UserProfileLoader: ObservableObject {
         else if keyPath == \.projectsState { self[keyPath: keyPath] = ((profile?.finishedProjects.isEmpty ?? true) && (profile?.activeProjects.isEmpty ?? true)) ? .failed : .loaded }
         else if keyPath == \.hostState { self[keyPath: keyPath] = profile?.currentHost == nil ? .failed : .loaded }
         else if keyPath == \.logState { self[keyPath: keyPath] = weeklyLog.isEmpty ? .failed : .loaded }
+    }
+
+	private func bestCoalitionHex(from profile: UserProfile) -> String? {
+        return profile.coalitions.max(by: { ($0.score ?? 0) < ($1.score ?? 0) })?.color
     }
 
     func refreshNow() async {
@@ -170,6 +182,9 @@ final class UserProfileLoader: ObservableObject {
         if let c, let current = profile {
             profile = repo.applyCoalitions(to: current, coalitions: c)
             coalitionsState = .loaded
+            if let p = profile {
+                onCoalitionsColor?(bestCoalitionHex(from: p))
+            }
         } else {
             markFailed(\.coalitionsState)
         }
