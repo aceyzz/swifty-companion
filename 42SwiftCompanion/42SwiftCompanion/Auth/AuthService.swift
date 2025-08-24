@@ -146,7 +146,7 @@ final class AuthService: NSObject, ObservableObject {
             URLQueryItem(name: "redirect_uri", value: APIConfig.redirectUri),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "state", value: state),
-            URLQueryItem(name: "scope", value: "public")
+            URLQueryItem(name: "scope", value: "public projects")
         ]
         guard let authURL = comps.url else { return }
         session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: scheme) { [weak self] callbackURL, error in

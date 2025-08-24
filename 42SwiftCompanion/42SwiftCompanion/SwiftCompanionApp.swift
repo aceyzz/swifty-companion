@@ -51,6 +51,7 @@ struct MainTabView: View {
         TabView {
             HomeView().tabItem { Image(systemName: "house.fill"); Text("Accueil") }
             SearchView().tabItem { Image(systemName: "magnifyingglass"); Text("Recherche") }
+            SlotsPageView().tabItem { Image(systemName: "calendar.badge.clock"); Text("Slots") }
             MyProfileView().tabItem { Image(systemName: "person.crop.circle"); Text("Profil") }
             SettingsView().tabItem { Image(systemName: "gearshape.fill"); Text("Réglages") }
         }
