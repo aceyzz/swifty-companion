@@ -572,7 +572,8 @@ final class SlotsViewModel: ObservableObject {
                 return
             }
             do {
-                let created = try await repo.createEvaluationSlot(begin: begin, end: end)
+                // let created = try await repo.createEvaluationSlot(begin: begin, end: end) // Juste pour debug, mais c'est l'un ou l'autre
+                let _ = try await repo.createEvaluationSlot(begin: begin, end: end)
                 // await debugPrintCreatedSlot(created)
                 await MainActor.run { self.showCreateSheet = false }
                 try? await Task.sleep(nanoseconds: 150_000_000)
