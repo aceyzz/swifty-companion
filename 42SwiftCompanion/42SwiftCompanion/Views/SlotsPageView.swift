@@ -235,82 +235,111 @@ private struct CreateFab: View {
 
 struct CreateSlotSheet: View {
     @ObservedObject var vm: SlotsViewModel
+    @Environment(\.verticalSizeClass) private var vClass
+    @State private var selectedDetent: PresentationDetent = .medium
+
+    private var adaptiveDetents: Set<PresentationDetent> {
+        if vClass == .compact { return [.large] }
+        return [.medium, .large]
+    }
 
     var body: some View {
-        VStack(spacing: 20) {
-            SectionCard(title: "Pose un slot") {
-                VStack(spacing: 14) {
-                    HStack {
-                        Text("Jour")
-                            .font(.body)
-                        Spacer()
-                        DatePicker("", selection: $vm.form.day, in: vm.createDateRange, displayedComponents: [.date])
-                            .labelsHidden()
-                            .disabled(vm.isCreating)
-                    }
+        GeometryReader { _ in
+            ScrollView {
+                VStack(spacing: 16) {
+                    SectionCard(title: "Pose un slot") {
+                        VStack(spacing: 14) {
+                            HStack {
+                                Text("Jour")
+                                    .font(.body)
+                                Spacer()
+                                DatePicker("", selection: $vm.form.day, in: vm.createDateRange, displayedComponents: [.date])
+                                    .labelsHidden()
+                                    .datePickerStyle(.compact)
+                                    .disabled(vm.isCreating)
+                            }
 
-                    HStack {
-                        Text("Début")
-                            .font(.body)
-                        Spacer()
-                        DatePicker("", selection: $vm.form.start, in: vm.createStartRange, displayedComponents: [.hourAndMinute])
-                            .labelsHidden()
+                            HStack {
+                                Text("Début")
+                                    .font(.body)
+                                Spacer()
+                                DatePicker("", selection: $vm.form.start, in: vm.createStartRange, displayedComponents: [.hourAndMinute])
+                                    .labelsHidden()
+                                    .datePickerStyle(.compact)
+                                    .disabled(vm.isCreating || vm.createMaxSegments < vm.minSegments)
+                            }
+
+                            HStack {
+                                Text("Durée")
+                                Spacer()
+                                Text(vm.form.durationText).font(.callout.weight(.semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+
+                            Stepper(value: $vm.form.segments, in: vm.minSegments...vm.createMaxSegments) {
+                                Text("Segments: \(vm.form.segments)")
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
                             .disabled(vm.isCreating || vm.createMaxSegments < vm.minSegments)
+                        }
                     }
 
-                    HStack {
-                        Text("Durée")
-                        Spacer()
-                        Text(vm.form.durationText).font(.callout.weight(.semibold))
+                    SectionCard(title: "Résumé") {
+                        VStack(spacing: 6) {
+                            HStack {
+                                Text("Début")
+                                Spacer()
+                                Text(vm.form.startText).font(.callout.weight(.semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+                            HStack {
+                                Text("Fin")
+                                Spacer()
+                                Text(vm.form.endText).font(.callout.weight(.semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+                        }
                     }
 
-                    Stepper(value: $vm.form.segments, in: vm.minSegments...vm.createMaxSegments) {
-                        Text("Segments de 15 min: \(vm.form.segments)")
+                    HStack(spacing: 12) {
+                        Button(role: .cancel) { vm.dismissCreateSheet() } label: {
+                            Text("Annuler").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            Task { await vm.confirmCreate() }
+                        } label: {
+                            if vm.isCreating {
+                                ProgressView().frame(maxWidth: .infinity)
+                            } else {
+                                Text("Confirmer").frame(maxWidth: .infinity)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(vm.isCreating || vm.createMaxSegments < vm.minSegments)
                     }
-                    .disabled(vm.isCreating || vm.createMaxSegments < vm.minSegments)
                 }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .top)
             }
-
-            SectionCard(title: "Résumé") {
-                VStack(spacing: 6) {
-                    HStack {
-                        Text("Début")
-                        Spacer()
-                        Text(vm.form.startText).font(.callout.weight(.semibold))
-                    }
-                    HStack {
-                        Text("Fin")
-                        Spacer()
-                        Text(vm.form.endText).font(.callout.weight(.semibold))
-                    }
-                }
-            }
-
-            HStack(spacing: 12) {
-                Button(role: .cancel) { vm.dismissCreateSheet() } label: {
-                    Text("Annuler").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    Task { await vm.confirmCreate() }
-                } label: {
-                    if vm.isCreating {
-                        ProgressView().frame(maxWidth: .infinity)
-                    } else {
-                        Text("Confirmer").frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(vm.isCreating || vm.createMaxSegments < vm.minSegments)
-            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.visible)
+			.padding(.top, 20)
         }
-        .padding()
+        .onAppear { selectedDetent = (vClass == .compact ? .large : .medium) }
+        .onChange(of: vClass) { selectedDetent = (vClass == .compact ? .large : .medium) }
         .onChange(of: vm.form.day) { vm.syncFormAfterDayChange() }
         .onChange(of: vm.form.start) { vm.syncFormAfterStartChange() }
         .onChange(of: vm.form.segments) { vm.syncFormAfterSegmentsChange() }
         .presentationDragIndicator(.visible)
-        .presentationDetents([.medium, .fraction(0.55)])
+        .presentationDetents(adaptiveDetents, selection: $selectedDetent)
+        .presentationContentInteraction(.scrolls)
+        .interactiveDismissDisabled(vm.isCreating)
         .overlay(alignment: .top) {
             if let text = vm.errorBannerText {
                 ErrorBanner(text: text)

@@ -30,6 +30,7 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 - Dashboard campus : infos, nombre d’utilisateurs actifs en temps réel, événements à venir.
 - Cache local JSON (profil, logs, campus) avec restauration immédiate, auto-refresh périodique.
 - UX polie : skeletons & shimmer, haptique, sections réutilisables, filtres en chips, fiches détaillées en sheets.
+- Slots d’évaluation : poser des créneaux par segments de 15 min et les supprimer avec confirmation système, états de chargement et retours haptiques.
 
 <br>
 
@@ -41,6 +42,7 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 - **Accueil (Home)** : carte d’identité du campus (adresse, site web, effectifs), événements triés chronologiquement.
 - **Réglages** : état du compte, validité du jeton, info app, déconnexion.
 - **Accessibilité & confort** : états de chargement explicites, erreurs contextualisées avec action Réessayer, haptique, animations snappy.
+- **Slots d’évaluation** : poser des créneaux par segments de 15 min et les supprimer avec confirmation système, états de chargement et retours haptiques.
 
 <br>
 
@@ -50,9 +52,9 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 
 #### UI / Views
 
-- **Écrans** : BootView, LoginView, HomeView, SearchView, MyProfileView → UserProfileView.
-- **Composants** : SectionCard, InfoPillRow, CapsuleBadge, LoadingListPlaceholder (+ shimmer), WeeklyLogCard (Charts).
-- **Thème** : usage de `Color("AccentColor")`, coins `.continuous`, silhouettes légères, lisibilité prioritaire.
++ **Écrans** : BootView, LoginView, HomeView, SearchView, SlotsPageView, MyProfileView → UserProfileView.
++ **Composants** : SectionCard, InfoPillRow, CapsuleBadge, LoadingListPlaceholder (+ shimmer), WeeklyLogCard (Charts), CreateSlotSheet.
+- **Thème** : usage de `Color("AccentColor")` dynamique selon coalition avec fallback, coins `.continuous`, silhouettes légères, lisibilité prioritaire.
 
 #### Store & Loaders
 
@@ -62,7 +64,7 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 #### Données & Mappers
 
 - **Models/UserProfile** + Raw Decodables pour isoler mapping/normalisation (dates ISO, regroupement projets, etc.).
-- **Repositories** : ProfileRepository, CampusRepository, SearchRepository, LocationRepository.
++ **Repositories** : ProfileRepository, CampusRepository, SearchRepository, LocationRepository, SlotsRepository.
 - **Caches** : ProfileCache, CampusCache (JSON sérialisés, ISO8601, dossier Caches utilisateur).
 
 #### Réseau
@@ -103,14 +105,14 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 - **Login** : bouton unique « Se connecter avec 42 », web auth intégrée, état « Connexion… ».
 - **Accueil** : carte campus (nom, adresse, site, effectifs), actifs en temps réel, événements à venir (sheet détail).
 - **Recherche** : champ « Rechercher un login… », résultats avec avatar/nom/login, ouverture du profil en plein écran.
-- **Slots** : dépot et affichage de créneaux d'évaluation.
++ **Slots** : dépot, suppression et affichage de créneaux d'évaluation (sheet responsive, confirmation, feedback visuel/haptique).
 - **Profil** :
 	- Identité : avatar, affichage title/login, poste actuel, contact, langue du campus.
 	- À propos : statut/piscine, cursus avec chips + niveau et progression.
 	- Coalitions : chips de sélection, Score/Rang mis en carte.
 	- Log time : histogramme 14 jours + Total et Moyenne.
 	- En cours / Terminés : items groupés par cursus, tri chronologique, badge Note/Validé/Retry et lien repo si présent (sheet).
-- **Réglages** : login courant, validité du jeton, nom + version de l’app, déconnexion confirmée.
+- **Réglages** : login courant, validité du jeton, nom + version de l’app, soumission de bug, déconnexion confirmée.
 
 <br>
 
@@ -155,6 +157,9 @@ Dans le dashboard 42, configure la Redirect URI exacte.
 - `GET /v2/campus/{id}/locations` — paginé, actifs
 - `GET /v2/campus/{id}/events` — paginé, futurs
 - `GET /v2/users?search[login]=…` — recherche, page[size]
+- `GET /v2/me/slots` — créneaux de l’utilisateur courant (journée).
+- `POST /v2/slots` — création d’un créneau d’évaluation.
+- `DELETE /v2/slots/{id}` — suppression d’un créneau.
 
 Gestion centralisée des pages et du header Link côté APIClient.
 
@@ -168,13 +173,16 @@ Gestion centralisée des pages et du header Link côté APIClient.
 			<td><img src="./utils/screens/1.png" alt="Screen 1" width="220"></td>
 			<td><img src="./utils/screens/2.png" alt="Screen 2" width="220"></td>
 			<td><img src="./utils/screens/3.png" alt="Screen 3" width="220"></td>
-			<td><img src="./utils/screens/4.png" alt="Screen 4" width="220"></td>
 		</tr>
 		<tr>
+			<td><img src="./utils/screens/4.png" alt="Screen 4" width="220"></td>
 			<td><img src="./utils/screens/5.png" alt="Screen 5" width="220"></td>
 			<td><img src="./utils/screens/6.png" alt="Screen 6" width="220"></td>
+		</tr>
+		<tr>
 			<td><img src="./utils/screens/7.png" alt="Screen 7" width="220"></td>
 			<td><img src="./utils/screens/8.png" alt="Screen 8" width="220"></td>
+			<td><img src="./utils/screens/9.png" alt="Screen 9" width="220"></td>
 		</tr>
 	</table>
 </div>
