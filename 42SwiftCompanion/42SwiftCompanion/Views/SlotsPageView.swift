@@ -2,6 +2,8 @@ import SwiftUI
 import Foundation
 import UIKit
 
+var DEBUG = true
+
 struct SlotsPageView: View {
     @StateObject private var vm = SlotsViewModel()
 
@@ -492,7 +494,9 @@ final class SlotsViewModel: ObservableObject {
             guard let self else { return }
             do {
                 let raw = try await repo.myEvaluationSlots(forDay: day)
-                // await debugPrintSlots(forDay: day)
+                if DEBUG {
+					await debugPrintSlots(forDay: day)
+                }
                 if Task.isCancelled { return }
 
                 var cal = Calendar(identifier: .gregorian)
@@ -601,9 +605,10 @@ final class SlotsViewModel: ObservableObject {
                 return
             }
             do {
-                // let created = try await repo.createEvaluationSlot(begin: begin, end: end) // Juste pour debug, mais c'est l'un ou l'autre
-                let _ = try await repo.createEvaluationSlot(begin: begin, end: end)
-                // await debugPrintCreatedSlot(created)
+                let created = try await repo.createEvaluationSlot(begin: begin, end: end)
+                if DEBUG {
+                    await debugPrintCreatedSlot(created)
+                }
                 await MainActor.run { self.showCreateSheet = false }
                 try? await Task.sleep(nanoseconds: 150_000_000)
                 await refresh(force: true)
@@ -880,7 +885,11 @@ final class SlotsRepository {
             for id in ids {
                 group.addTask {
                     let val = try? await self.scaleTeam(id: id)
-                    // if let val { await debugPrintScaleTeam(id: id, payload: val) }
+                    if let val {
+                        if DEBUG {
+                            await debugPrintScaleTeam(id: id, payload: val)
+                        }
+                    }
                     return (id, val)
                 }
             }
@@ -925,56 +934,56 @@ private extension Date {
     }
 }
 
-// @MainActor
-// func debugPrintSlots(forDay day: Date, timeZone: TimeZone = .current) async {
-//     var cal = Calendar(identifier: .gregorian)
-//     cal.timeZone = timeZone
-//     let repo = SlotsRepository.shared
-//     let startOfDay = cal.startOfDay(for: day)
-//     let end = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-//     let begin = repo.anchorBegin(forDay: day, timeZone: timeZone)
-//     let items = [
-//         URLQueryItem(name: "range[begin_at]", value: "\(DateParser.isoString(begin)),\(DateParser.isoString(end))"),
-//         URLQueryItem(name: "page[size]", value: "100")
-//     ]
-//     let ep = Endpoint(path: "/v2/me/slots", queryItems: items)
-//     do {
-//         let raw: [JSONValue] = try await APIClient.shared.request(ep, as: [JSONValue].self)
-//         var output = ""
-//         var count = 0
-//         for slot in raw {
-//             if case .object(let dict) = slot {
-//                 let beginAt = dict["begin_at"] ?? .null
-//                 let endAt = dict["end_at"] ?? .null
-//                 let id = dict["id"] ?? .null
-//                 let scaleTeam = dict["scale_team"] ?? .null
-//                 count += 1
-//                 output += "##### SLOT \(count) #####\nid: \(id)\nbegin_at: \(beginAt)\nend_at: \(endAt)\nscale_team: \(scaleTeam)\n\n"
-//             }
-//         }
-//         print("==== /v2/me/slots KEYS ====\n\(output)===========================")
-//     } catch {
-//         print("==== /v2/me/slots RAW ERROR ====\n\(error)\n================================")
-//     }
-// }
+@MainActor
+func debugPrintSlots(forDay day: Date, timeZone: TimeZone = .current) async {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = timeZone
+    let repo = SlotsRepository.shared
+    let startOfDay = cal.startOfDay(for: day)
+    let end = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+    let begin = repo.anchorBegin(forDay: day, timeZone: timeZone)
+    let items = [
+        URLQueryItem(name: "range[begin_at]", value: "\(DateParser.isoString(begin)),\(DateParser.isoString(end))"),
+        URLQueryItem(name: "page[size]", value: "100")
+    ]
+    let ep = Endpoint(path: "/v2/me/slots", queryItems: items)
+    do {
+        let raw: [JSONValue] = try await APIClient.shared.request(ep, as: [JSONValue].self)
+        var output = ""
+        var count = 0
+        for slot in raw {
+            if case .object(let dict) = slot {
+                let beginAt = dict["begin_at"] ?? .null
+                let endAt = dict["end_at"] ?? .null
+                let id = dict["id"] ?? .null
+                let scaleTeam = dict["scale_team"] ?? .null
+                count += 1
+                output += "##### SLOT \(count) #####\nid: \(id)\nbegin_at: \(beginAt)\nend_at: \(endAt)\nscale_team: \(scaleTeam)\n\n"
+            }
+        }
+        print("==== /v2/me/slots KEYS ====\n\(output)===========================")
+    } catch {
+        print("==== /v2/me/slots RAW ERROR ====\n\(error)\n================================")
+    }
+}
 
-// @MainActor
-// func debugPrintScaleTeam(id: Int, payload: JSONValue) async {
-//     let enc = JSONEncoder()
-//     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-//     if let data = try? enc.encode(payload), let text = String(data: data, encoding: .utf8) {
-//         print("==== /v2/scale_teams/\(id) RAW ====\n\(text)\n====================================")
-//     }
-// }
+@MainActor
+func debugPrintScaleTeam(id: Int, payload: JSONValue) async {
+    let enc = JSONEncoder()
+    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    if let data = try? enc.encode(payload), let text = String(data: data, encoding: .utf8) {
+        print("==== /v2/scale_teams/\(id) RAW ====\n\(text)\n====================================")
+    }
+}
 
-// @MainActor
-// func debugPrintCreatedSlot(_ slots: [EvaluationSlot]) async {
-//     let enc = JSONEncoder()
-//     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-//     if let data = try? enc.encode(slots), let text = String(data: data, encoding: .utf8) {
-//         print("==== CREATED /v2/slots ====\n\(text)\n===========================")
-//     }
-// }
+@MainActor
+func debugPrintCreatedSlot(_ slots: [EvaluationSlot]) async {
+    let enc = JSONEncoder()
+    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    if let data = try? enc.encode(slots), let text = String(data: data, encoding: .utf8) {
+        print("==== CREATED /v2/slots ====\n\(text)\n===========================")
+    }
+}
 
 func describeCreateFailure(begin: Date, end: Date, error: Error) -> String {
     let isoBegin = DateParser.isoString(begin)
