@@ -273,71 +273,90 @@ private struct CampusInfoCard: View {
 
 private struct EventsList: View {
 	@EnvironmentObject var theme: Theme
-    let events: [CampusDashboard.Event]
-    @State private var presented: CampusDashboard.Event?
+	let events: [CampusDashboard.Event]
+	@State private var presented: CampusDashboard.Event?
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(events) { e in
-                InfoPillRow(
-                    leading: .system("calendar"),
-                    title: e.title,
-                    subtitle: [e.when, e.location].compactMap { $0 }.joined(separator: " — "),
-                    badges: e.badges,
-                    onTap: { presented = e }
-                )
-            }
-        }
-        .sheet(item: $presented) { e in
-            EventDetailSheet(event: e)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
-    }
+	var body: some View {
+		Group {
+			if events.count > 4 {
+				ScrollView {
+					VStack(alignment: .leading, spacing: 10) {
+						ForEach(events) { e in
+							InfoPillRow(
+								leading: .system("calendar"),
+								title: e.title,
+								subtitle: [e.when, e.location].compactMap { $0 }.joined(separator: " — "),
+								badges: e.badges,
+								onTap: { presented = e }
+							)
+						}
+					}
+				}
+				.frame(maxHeight: 300)
+			} else {
+				VStack(alignment: .leading, spacing: 10) {
+					ForEach(events) { e in
+						InfoPillRow(
+							leading: .system("calendar"),
+							title: e.title,
+							subtitle: [e.when, e.location].compactMap { $0 }.joined(separator: " — "),
+							badges: e.badges,
+							onTap: { presented = e }
+						)
+					}
+				}
+			}
+		}
+		.sheet(item: $presented) { e in
+			EventDetailSheet(event: e)
+				.presentationDetents([.medium, .large])
+				.presentationDragIndicator(.visible)
+		}
+	}
 }
 
 private struct EventDetailSheet: View {
-    @EnvironmentObject var theme: Theme
-    let event: CampusDashboard.Event
+	@EnvironmentObject var theme: Theme
+	let event: CampusDashboard.Event
 
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 12) {
-                    Image(systemName: "calendar.badge.clock")
-                        .frame(width: 48, height: 48)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(theme.accentColor.opacity(0.12))
-                        )
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(event.title).font(.title3).bold()
-                        Text(event.when).font(.footnote).foregroundStyle(.secondary)
-                        if let loc = event.location, !loc.isEmpty {
-                            Text(loc).font(.footnote)
-                        }
-                        if !event.badges.isEmpty {
-                            HStack(spacing: 8) {
-                                ForEach(Array(event.badges.enumerated()), id: \.offset) { _, b in
-                                    CapsuleBadge(text: b)
-                                }
-                            }
-                        }
-                    }
-                    Spacer()
-                }
-                Divider()
-                if let desc = event.description, !desc.isEmpty {
-                    ScrollView { Text(desc).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading) }
-                } else {
-                    ContentUnavailableView("Pas de description", systemImage: "text.alignleft")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Détails de l’événement")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
+	var body: some View {
+		NavigationStack {
+			VStack(alignment: .leading, spacing: 16) {
+				HStack(spacing: 12) {
+					Image(systemName: "calendar.badge.clock")
+						.frame(width: 48, height: 48)
+						.background(
+							RoundedRectangle(cornerRadius: 10, style: .continuous)
+								.fill(theme.accentColor.opacity(0.12))
+						)
+					VStack(alignment: .leading, spacing: 4) {
+						Text(event.title).font(.title3).bold()
+						Text(event.when).font(.footnote).foregroundStyle(.secondary)
+						if let loc = event.location, !loc.isEmpty {
+							Text(loc).font(.footnote)
+						}
+						if !event.badges.isEmpty {
+							HStack(spacing: 8) {
+								ForEach(Array(event.badges.enumerated()), id: \.offset) { _, b in
+									CapsuleBadge(text: b)
+								}
+							}
+						}
+					}
+					Spacer()
+				}
+				Divider()
+				if let desc = event.description, !desc.isEmpty {
+					ScrollView { Text(desc).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading) }
+				} else {
+					ContentUnavailableView("Pas de description", systemImage: "text.alignleft")
+						.frame(maxWidth: .infinity, alignment: .leading)
+				}
+				Spacer()
+			}
+			.padding()
+			.navigationTitle("Détails de l’événement")
+			.navigationBarTitleDisplayMode(.inline)
+		}
+	}
 }

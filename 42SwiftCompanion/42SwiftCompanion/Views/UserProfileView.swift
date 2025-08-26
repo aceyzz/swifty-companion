@@ -59,13 +59,7 @@ struct UserProfileView: View {
                         }
                     }
 
-                    LoadableSection(title: "Log time", state: loader.logState) {
-                        LoadingListPlaceholder(lines: 1, compact: true)
-                    } failed: {
-                        RetryRow(title: "Impossible de charger le log time") { loader.retryLog() }
-                    } content: {
-                        WeeklyLogCard(logs: loader.weeklyLog)
-                    }
+                    LogTimeSection(loader: loader)
 
                     if let p = loader.profile {
                         UnifiedItemsSection(
@@ -81,7 +75,8 @@ struct UserProfileView: View {
                             state: loader.projectsState,
                             source: .grouped(ItemsBuilder.activeProjectsGrouped(from: p)),
                             emptyText: "Aucun projet pour ce cursus",
-                            maxHeight: projectsSectionMaxHeight
+                            maxHeight: projectsSectionMaxHeight,
+                            onRetry: { loader.retryProjects() }
                         )
 
                         UnifiedItemsSection(
@@ -89,7 +84,8 @@ struct UserProfileView: View {
                             state: loader.projectsState,
                             source: .grouped(ItemsBuilder.finishedProjectsGrouped(from: p)),
                             emptyText: "Aucun projet pour ce cursus",
-                            maxHeight: finishedProjectsSectionMaxHeight
+                            maxHeight: finishedProjectsSectionMaxHeight,
+                            onRetry: { loader.retryProjects() }
                         )
                     } else {
                         LoadableSection(title: "Achievements", state: loader.basicState) {
@@ -559,6 +555,55 @@ struct ProfileTextList: View {
     }
 }
 
+private struct LogTimeSection: View {
+	@ObservedObject var loader: UserProfileLoader
+	@State private var didAutoRetry = false
+	@State private var lastRefreshMarker: Date?
+	@State private var isRefreshing = false
+
+	var body: some View {
+		LoadableSection(title: "Log time", state: loader.logState) {
+			LoadingListPlaceholder(lines: 1, compact: true)
+		} failed: {
+			RetryRow(title: "Impossible de charger le log time") { loader.retryLog() }
+		} content: {
+			VStack(alignment: .leading, spacing: 0) {
+				WeeklyLogCard(logs: loader.weeklyLog)
+				HStack {
+					Spacer()
+					Button {
+						isRefreshing = true
+						loader.retryLog()
+						DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+							isRefreshing = false
+						}
+					} label: {
+						Image(systemName: isRefreshing ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.triangle.2.circlepath")
+							.rotationEffect(isRefreshing ? .degrees(360) : .degrees(0))
+							.animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
+					}
+					.buttonStyle(.plain)
+				}
+			}
+		}
+		.task {
+			if loader.logState == .idle { loader.retryLog() }
+		}
+		.onChange(of: loader.lastUpdated) { newValue, _ in
+			guard let stamp = newValue, stamp != lastRefreshMarker else { return }
+			lastRefreshMarker = stamp
+			if loader.logState != .loading { loader.retryLog() }
+		}
+		.onChange(of: loader.logState) { newValue, _ in
+			if newValue == .loading { didAutoRetry = false }
+			if newValue == .failed && !didAutoRetry {
+				didAutoRetry = true
+				loader.retryLog()
+			}
+		}
+	}
+}
+
 struct WeeklyLogCard: View {
     @EnvironmentObject var theme: Theme
     let logs: [DailyLog]
@@ -580,6 +625,10 @@ struct WeeklyLogCard: View {
             if bucket[d] != nil { bucket[d, default: 0] += l.hours }
         }
         return bucket.keys.sorted().map { DailyLog(date: $0, hours: bucket[$0] ?? 0) }
+    }
+
+    private var seriesKey: String {
+        series.map { "\($0.date.timeIntervalSince1970)-\($0.hours)" }.joined(separator: "|")
     }
 
     private var totalHours: Double { series.reduce(0) { $0 + $1.hours } }
@@ -616,6 +665,7 @@ struct WeeklyLogCard: View {
                 .foregroundStyle(theme.accentColor)
                 .opacity(item.hours > 0 ? 1 : 0.35)
             }
+            .id(seriesKey)
             .chartXScale(domain: xDomain)
             .chartYScale(domain: 0...yMax)
             .chartXAxis {
@@ -780,6 +830,21 @@ private struct UnifiedItemsSection: View {
     let source: ItemsSource
     let emptyText: String
     let maxHeight: CGFloat?
+    let onRetry: (() -> Void)?
+
+    init(title: String,
+         state: UserProfileLoader.SectionLoadState,
+         source: ItemsSource,
+         emptyText: String,
+         maxHeight: CGFloat?,
+         onRetry: (() -> Void)? = nil) {
+        self.title = title
+        self.state = state
+        self.source = source
+        self.emptyText = emptyText
+        self.maxHeight = maxHeight
+        self.onRetry = onRetry
+    }
 
     @State private var presented: ProfileItem?
     @State private var selectedId: Int?
@@ -790,7 +855,11 @@ private struct UnifiedItemsSection: View {
             case .loading, .idle:
                 LoadingListPlaceholder(lines: 2)
             case .failed:
-                EmptyRow(text: "Erreur")
+                if let onRetry {
+                    RetryRow(title: "Impossible de charger les projets", action: onRetry)
+                } else {
+                    EmptyRow(text: "Erreur")
+                }
             case .loaded:
                 switch source {
                 case .flat(let items):
@@ -863,6 +932,7 @@ private struct UnifiedItemsSection: View {
     }
 }
 
+
 private struct ItemDetailSheet: View {
     @EnvironmentObject var theme: Theme
     let item: ProfileItem
@@ -889,20 +959,20 @@ private struct ItemDetailSheet: View {
                     Spacer()
                 }
                 Divider()
-				VStack(alignment: .leading, spacing: 10) {
-					ForEach(item.sheetSubtexts.indices, id: \.self) { idx in
-						let text = item.sheetSubtexts[idx]
-						if text.starts(with: "https://"), let url = URL(string: text) {
-							HStack(spacing: 8) {
-								Image(systemName: "link")
-								Link("Ouvrir le lien", destination: url)
-									.font(.subheadline)
-							}
-						} else {
-							Text(text).font(.subheadline)
-						}
-					}
-				}
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(item.sheetSubtexts.indices, id: \.self) { idx in
+                        let text = item.sheetSubtexts[idx]
+                        if text.starts(with: "https://"), let url = URL(string: text) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "link")
+                                Link("Ouvrir le lien", destination: url)
+                                    .font(.subheadline)
+                            }
+                        } else {
+                            Text(text).font(.subheadline)
+                        }
+                    }
+                }
                 Spacer()
             }
             .padding()
