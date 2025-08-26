@@ -58,48 +58,64 @@ final class ProfileRepository {
             let name: String
             let cursusId: Int?
             let retry: Int?
-            let repoURL: URL?
+            let projectURL: URL?
             let status: String?
             let teamStatus: String?
             let registeredAt: Date?
             let endAt: Date?
             let finalMark: Int?
             let validated: Bool?
+            let latestTeamInProgress: Bool
+        }
+
+        func mostRecentTeam(_ teams: [TeamRaw]) -> TeamRaw? {
+            func score(_ t: TeamRaw) -> (Date, Int) {
+                let d = DateParser.iso(t.updated_at) ?? DateParser.iso(t.created_at) ?? DateParser.iso(t.closed_at) ?? .distantPast
+                let i = t.id ?? 0
+                return (d, i)
+            }
+            return teams.max { l, r in
+                let ls = score(l)
+                let rs = score(r)
+                if ls.0 == rs.0 { return ls.1 < rs.1 }
+                return ls.0 < rs.0
+            }
         }
 
         let normalized: [Norm] = projects.compactMap { p in
             guard let name = p.project.name, let slug = p.project.slug else { return nil }
-            let teamById = { (id: Int?) -> TeamRaw? in
-                guard let id else { return nil }
-                return p.teams?.first(where: { $0.id == id })
-            }(p.current_team_id)
-
+            let latestTeam = p.teams.flatMap(mostRecentTeam)
             let finishedDates: [Date] = [
                 DateParser.iso(p.closed_at),
                 DateParser.iso(p.marked_at)
             ].compactMap { $0 } + (p.teams?.compactMap { DateParser.iso($0.closed_at) } ?? [])
 
             let endAt = finishedDates.max()
-            let repo = (teamById?.repo_url ?? p.teams?.first?.repo_url).flatMap(URL.init(string:))
+            let projectStatus = p.status?.lowercased()
+            let latestTeamStatus = latestTeam?.status?.lowercased()
+            let encodedSlug = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug
+            let projectURL = URL(string: "https://projects.intra.42.fr/projects/\(encodedSlug)")
             return Norm(
                 slug: slug,
                 name: name,
                 cursusId: p.cursus_ids.first,
                 retry: p.occurrence,
-                repoURL: repo,
-                status: p.status,
-                teamStatus: teamById?.status ?? p.teams?.first?.status,
+                projectURL: projectURL,
+                status: projectStatus,
+                teamStatus: latestTeamStatus,
                 registeredAt: DateParser.iso(p.created_at),
                 endAt: endAt,
                 finalMark: p.final_mark,
-                validated: p.validated
+                validated: p.validated,
+                latestTeamInProgress: latestTeamStatus == "in_progress"
             )
         }
 
         let finished: [UserProfile.Project] = normalized
             .filter { n in
-                let st = n.status?.lowercased() ?? ""
-                let ts = n.teamStatus?.lowercased() ?? ""
+                if n.latestTeamInProgress { return false }
+                let st = n.status ?? ""
+                let ts = n.teamStatus ?? ""
                 if n.finalMark != nil { return true }
                 if ["finished", "waiting_for_correction"].contains(st) { return true }
                 if ["finished", "closed"].contains(ts) { return true }
@@ -116,15 +132,17 @@ final class ProfileRepository {
                     closedAt: n.endAt,
                     retry: n.retry,
                     cursusId: n.cursusId,
-                    createdAt: n.registeredAt
+                    createdAt: n.registeredAt,
+                    projectURL: n.projectURL
                 )
             }
             .sorted { ($0.closedAt ?? .distantPast) > ($1.closedAt ?? .distantPast) }
 
         let active: [UserProfile.ActiveProject] = normalized
             .filter { n in
-                let st = n.status?.lowercased() ?? ""
-                let ts = n.teamStatus?.lowercased() ?? ""
+                if n.latestTeamInProgress { return true }
+                let st = n.status ?? ""
+                let ts = n.teamStatus ?? ""
                 let isFinished = (n.finalMark != nil) || ["finished", "waiting_for_correction"].contains(st) || ["finished", "closed"].contains(ts) || (n.endAt != nil)
                 return !isFinished
             }
@@ -135,7 +153,7 @@ final class ProfileRepository {
                     slug: n.slug,
                     status: n.status,
                     teamStatus: n.teamStatus,
-                    repoURL: n.repoURL,
+                    repoURL: n.projectURL,
                     registeredAt: n.registeredAt,
                     cursusId: n.cursusId,
                     retry: n.retry,

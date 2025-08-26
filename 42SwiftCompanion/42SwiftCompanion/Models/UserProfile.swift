@@ -64,6 +64,7 @@ struct UserProfile: Identifiable, Codable {
         let retry: Int?
         let cursusId: Int?
         let createdAt: Date?
+        let projectURL: URL?
     }
 
     struct ActiveProject: Identifiable, Codable {
@@ -210,8 +211,11 @@ struct CoalitionUserRaw: Decodable { let coalition_id: Int; let score: Int?; let
 struct TeamRaw: Decodable {
     let id: Int?
     let status: String?
+    let url: String?
     let repo_url: String?
     let name: String?
+    let created_at: String?
+    let updated_at: String?
     let closed_at: String?
     let validated: Bool?
 }

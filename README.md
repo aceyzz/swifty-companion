@@ -103,6 +103,7 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 - **Login** : bouton unique « Se connecter avec 42 », web auth intégrée, état « Connexion… ».
 - **Accueil** : carte campus (nom, adresse, site, effectifs), actifs en temps réel, événements à venir (sheet détail).
 - **Recherche** : champ « Rechercher un login… », résultats avec avatar/nom/login, ouverture du profil en plein écran.
+- **Slots** : dépot et affichage de créneaux d'évaluation.
 - **Profil** :
 	- Identité : avatar, affichage title/login, poste actuel, contact, langue du campus.
 	- À propos : statut/piscine, cursus avec chips + niveau et progression.

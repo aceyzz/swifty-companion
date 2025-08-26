@@ -191,12 +191,12 @@ private struct IdentityCard: View {
     }
 
     private func iconForContact(_ s: String) -> String {
-		if s.contains("@") { return "envelope" }
-		if s.contains("—") || s.contains("(") { return "building.2" }
-		let digits = s.filter { $0.isNumber }
-		if digits.count >= 6 { return "phone" }
-		return "person"
-	}
+        if s.contains("@") { return "envelope" }
+        if s.contains("—") || s.contains("(") { return "building.2" }
+        let digits = s.filter { $0.isNumber }
+        if digits.count >= 6 { return "phone" }
+        return "person"
+    }
 }
 
 private struct IdentitySkeleton: View {
@@ -514,36 +514,36 @@ struct MyProfileView: View {
 }
 
 struct SectionCard<Content: View>: View {
-	@EnvironmentObject var theme: Theme
-	let title: String
-	let content: Content
-	init(title: String, @ViewBuilder content: () -> Content) {
-		self.title = title
-		self.content = content()
-	}
-	var body: some View {
-		VStack(alignment: .leading, spacing: 12) {
-			if !title.isEmpty {
-				Text(title)
-					.font(.system(size: 22, weight: .bold, design: .rounded))
-					.foregroundStyle(theme.accentColor)
-					.padding(.bottom, 4)
-			}
-			content
-		}
-		.padding(20)
-		.frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
-		.background(
-			RoundedRectangle(cornerRadius: 22, style: .continuous)
-				.fill(theme.accentColor.opacity(0.08))
-		)
-		.overlay(
-			RoundedRectangle(cornerRadius: 22, style: .continuous)
-				.stroke(theme.accentColor.opacity(0.18), lineWidth: 1.5)
-		)
-		.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
-		.padding(.horizontal, 8)
-	}
+    @EnvironmentObject var theme: Theme
+    let title: String
+    let content: Content
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !title.isEmpty {
+                Text(title)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.accentColor)
+                    .padding(.bottom, 4)
+            }
+            content
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(theme.accentColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(theme.accentColor.opacity(0.18), lineWidth: 1.5)
+        )
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 8)
+    }
 }
 
 
@@ -560,27 +560,27 @@ struct ProfileTextList: View {
 }
 
 struct WeeklyLogCard: View {
-	@EnvironmentObject var theme: Theme
+    @EnvironmentObject var theme: Theme
     let logs: [DailyLog]
 
     private var series: [DailyLog] {
-		var cal = Calendar(identifier: .gregorian)
-		cal.timeZone = TimeZone.current
-		let today = cal.startOfDay(for: Date())
-		let start = cal.date(byAdding: .day, value: -13, to: today) ?? today
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone.current
+        let today = cal.startOfDay(for: Date())
+        let start = cal.date(byAdding: .day, value: -13, to: today) ?? today
 
-		var bucket: [Date: Double] = [:]
-		for i in 0..<14 {
-			if let d = cal.date(byAdding: .day, value: i, to: start) {
-				bucket[cal.startOfDay(for: d)] = 0
-			}
-		}
-		for l in logs {
-			let d = cal.startOfDay(for: l.date)
-			if bucket[d] != nil { bucket[d, default: 0] += l.hours }
-		}
-		return bucket.keys.sorted().map { DailyLog(date: $0, hours: bucket[$0] ?? 0) }
-	}
+        var bucket: [Date: Double] = [:]
+        for i in 0..<14 {
+            if let d = cal.date(byAdding: .day, value: i, to: start) {
+                bucket[cal.startOfDay(for: d)] = 0
+            }
+        }
+        for l in logs {
+            let d = cal.startOfDay(for: l.date)
+            if bucket[d] != nil { bucket[d, default: 0] += l.hours }
+        }
+        return bucket.keys.sorted().map { DailyLog(date: $0, hours: bucket[$0] ?? 0) }
+    }
 
     private var totalHours: Double { series.reduce(0) { $0 + $1.hours } }
     private var avgHours: Double { series.isEmpty ? 0 : totalHours / Double(series.count) }
@@ -846,7 +846,7 @@ private struct UnifiedItemsSection: View {
                 }
                 .padding(.trailing, 2)
             }
-			.scrollDisabled(items.count <= 6)
+            .scrollDisabled(items.count <= 6)
             .frame(maxHeight: maxHeight)
             .scrollIndicators(.visible)
             .sheet(item: $presented) { it in
@@ -864,7 +864,7 @@ private struct UnifiedItemsSection: View {
 }
 
 private struct ItemDetailSheet: View {
-	@EnvironmentObject var theme: Theme
+    @EnvironmentObject var theme: Theme
     let item: ProfileItem
     var body: some View {
         NavigationStack {
@@ -889,18 +889,20 @@ private struct ItemDetailSheet: View {
                     Spacer()
                 }
                 Divider()
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(item.sheetSubtexts.indices, id: \.self) { idx in
-                        Text(item.sheetSubtexts[idx]).font(.subheadline)
-                    }
-                    if let link = item.link {
-                        HStack(spacing: 8) {
-                            Image(systemName: "link")
-                            Link("Ouvrir le lien", destination: link)
-                                .font(.subheadline)
-                        }
-                    }
-                }
+				VStack(alignment: .leading, spacing: 10) {
+					ForEach(item.sheetSubtexts.indices, id: \.self) { idx in
+						let text = item.sheetSubtexts[idx]
+						if text.starts(with: "https://"), let url = URL(string: text) {
+							HStack(spacing: 8) {
+								Image(systemName: "link")
+								Link("Ouvrir le lien", destination: url)
+									.font(.subheadline)
+							}
+						} else {
+							Text(text).font(.subheadline)
+						}
+					}
+				}
                 Spacer()
             }
             .padding()
@@ -986,6 +988,8 @@ private enum ItemsBuilder {
                 if let v = p.validated { badges.append(v ? "Validé" : "Non validé") }
                 if let m = p.finalMark { badges.append("Note \(m)") }
                 if let r = p.retry, r > 0 { badges.append("Retry \(r)") }
+                var sheetLines = badges
+                if let url = p.projectURL { sheetLines.append(url.absoluteString) }
                 return ProfileItem(
                     id: p.id,
                     icon: "checkmark.seal.fill",
@@ -994,8 +998,8 @@ private enum ItemsBuilder {
                     badges: badges,
                     sheetIcon: "checkmark.seal.fill",
                     sheetTitle: p.name,
-                    sheetSubtexts: badges,
-                    link: nil
+                    sheetSubtexts: sheetLines,
+                    link: p.projectURL
                 )
             }
             return (key, items)
