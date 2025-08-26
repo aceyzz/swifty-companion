@@ -26,7 +26,9 @@ struct SlotsPageView: View {
                                     label: vm.label(for:),
                                     rangeText: vm.rangeText(for:),
                                     badges: vm.badges(for:),
-                                    tint: vm.iconTint(for:))
+                                    tint: vm.iconTint(for:),
+                                    isDeleting: vm.isDeleting(_ :),
+                                    onDelete: { vm.askDelete($0) })
                         }
                     }
                 }
@@ -36,8 +38,8 @@ struct SlotsPageView: View {
             CreateFab { vm.openCreateSheet() }
         }
         .onAppear { vm.bootstrap() }
-		.onAppear { if case .idle = vm.state { Task { await vm.refresh() }}}
-		.onChange(of: vm.selectedDay) { Task { await vm.refresh() }}
+        .onAppear { if case .idle = vm.state { Task { await vm.refresh() }}}
+        .onChange(of: vm.selectedDay) { Task { await vm.refresh() }}
         .animation(.snappy, value: vm.stateKey)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $vm.showCreateSheet) {
@@ -46,6 +48,27 @@ struct SlotsPageView: View {
         .alert(item: $vm.alertItem) { item in
             Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
         }
+        .confirmationDialog(
+            "Supprimer ce slot ?",
+            isPresented: Binding(get: { vm.pendingDeletion != nil },
+                                set: { if !$0 { vm.pendingDeletion = nil } }),
+            presenting: vm.pendingDeletion
+        ) { group in
+            Button("Supprimer", role: .destructive) { Task { await vm.confirmDelete(group) } }
+            Button("Annuler", role: .cancel) {}
+        } message: { group in
+            Text(vm.deleteSummary(for: group))
+        }
+        .overlay(alignment: .top) {
+            if vm.isDeleting {
+                DeletionHUD()
+                    .padding(.top, 8)
+                    .padding(.horizontal, 12)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(1)
+            }
+        }
+        .animation(.snappy, value: vm.isDeleting)
     }
 }
 
@@ -128,6 +151,8 @@ private struct Content: View {
     let rangeText: (DisplaySlot) -> String
     let badges: (DisplaySlot) -> [String]
     let tint: (DisplaySlot) -> Color
+    let isDeleting: (DisplaySlot) -> Bool
+    let onDelete: (DisplaySlot) -> Void
 
     var body: some View {
         switch state {
@@ -145,18 +170,49 @@ private struct Content: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(groups) { g in
-                        InfoPillRow(
-                            leading: .system(g.isReserved ? "calendar.badge.checkmark" : "calendar.badge.clock"),
-                            title: label(g),
-                            subtitle: rangeText(g),
-                            badges: badges(g),
-                            onTap: nil,
-                            iconTint: tint(g)
-                        )
+                        ZStack(alignment: .topTrailing) {
+                            InfoPillRow(
+                                leading: .system(g.isReserved ? "calendar.badge.checkmark" : "calendar.badge.clock"),
+                                title: label(g),
+                                subtitle: rangeText(g),
+                                badges: badges(g),
+                                onTap: nil,
+                                iconTint: tint(g)
+                            )
+                            .opacity(isDeleting(g) ? 0.55 : 1)
+
+                            Group {
+                                if isDeleting(g) {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Button { onDelete(g) } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 18, weight: .bold))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Supprimer ce slot")
+                                }
+                            }
+                            .padding(6)
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+private struct DeletionHUD: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Suppression…").font(.callout.weight(.semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .shadow(radius: 10, y: 6)
+        .accessibilityLabel("Suppression en cours")
     }
 }
 
@@ -269,27 +325,27 @@ struct CreateSlotSheet: View {
 }
 
 private struct ErrorBanner: View {
-	let text: String
-	var body: some View {
-		VStack {
-			Text(text)
-				.font(.title3.weight(.bold))
-				.multilineTextAlignment(.center)
-				.foregroundStyle(.white)
-				.padding(.vertical, 16)
-				.padding(.horizontal, 20)
-				.background(
-					RoundedRectangle(cornerRadius: 18, style: .continuous)
-						.fill(Color(.systemRed))
-						.shadow(color: .black.opacity(0.25), radius: 18, y: 8)
-				)
-				.allowsHitTesting(false)
-				.accessibilityLabel("Erreur: \(text)")
-				.padding(.top, 8)
-				.padding(.horizontal, 12)
-			Spacer()
-		}
-	}
+    let text: String
+    var body: some View {
+        VStack {
+            Text(text)
+                .font(.title3.weight(.bold))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color(.systemRed))
+                        .shadow(color: .black.opacity(0.25), radius: 18, y: 8)
+                )
+                .allowsHitTesting(false)
+                .accessibilityLabel("Erreur: \(text)")
+                .padding(.top, 8)
+                .padding(.horizontal, 12)
+            Spacer()
+        }
+    }
 }
 
 @MainActor
@@ -313,6 +369,10 @@ final class SlotsViewModel: ObservableObject {
     @Published var createErrorMessage: String?
     @Published var errorBannerText: String?
 
+    @Published var pendingDeletion: DisplaySlot?
+    @Published private(set) var isDeleting = false
+    @Published private(set) var deletingSlotIds: Set<Int> = []
+
     private var fetchTask: Task<Void, Never>?
     private let repo = SlotsRepository.shared
 
@@ -328,6 +388,51 @@ final class SlotsViewModel: ObservableObject {
         let start = todayStart
         let end = cal.date(byAdding: .day, value: 14, to: start) ?? start
         return start...end
+    }
+
+    func askDelete(_ group: DisplaySlot) {
+        pendingDeletion = group
+    }
+
+    func deleteSummary(for group: DisplaySlot) -> String {
+        if let s = group.begin, let e = group.end {
+            let d = Self.dayShortFormatter.string(from: s).capitalized
+            let rs = Self.hourFormatter.string(from: s)
+            let re = Self.hourFormatter.string(from: e)
+            let seg = group.slotIds.count > 1 ? "ces \(group.slotIds.count) segments" : "ce segment"
+            return "Supprimer \(seg) le \(d) de \(rs) à \(re) ?"
+        } else {
+            return "Supprimer ce slot ?"
+        }
+    }
+
+    func confirmDelete(_ group: DisplaySlot) async {
+        if isDeleting { return }
+        isDeleting = true
+        deletingSlotIds.formUnion(group.slotIds)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        defer {
+            isDeleting = false
+            pendingDeletion = nil
+            deletingSlotIds.subtract(group.slotIds)
+        }
+        do {
+            try await repo.deleteEvaluationSlots(ids: group.slotIds)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            await refresh(force: true)
+        } catch {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            let message = describeDeleteFailure(ids: group.slotIds, error: error)
+            alertItem = .init(title: "Suppression impossible", message: message)
+        }
+    }
+
+    func isDeleting(_ group: DisplaySlot) -> Bool {
+        for id in group.slotIds {
+            if deletingSlotIds.contains(id) { return true }
+        }
+        return false
     }
 
     func bootstrap() {}
@@ -358,7 +463,7 @@ final class SlotsViewModel: ObservableObject {
             guard let self else { return }
             do {
                 let raw = try await repo.myEvaluationSlots(forDay: day)
-                await debugPrintSlots(forDay: day)
+                // await debugPrintSlots(forDay: day)
                 if Task.isCancelled { return }
 
                 var cal = Calendar(identifier: .gregorian)
@@ -468,7 +573,7 @@ final class SlotsViewModel: ObservableObject {
             }
             do {
                 let created = try await repo.createEvaluationSlot(begin: begin, end: end)
-                await debugPrintCreatedSlot(created)
+                // await debugPrintCreatedSlot(created)
                 await MainActor.run { self.showCreateSheet = false }
                 try? await Task.sleep(nanoseconds: 150_000_000)
                 await refresh(force: true)
@@ -745,7 +850,7 @@ final class SlotsRepository {
             for id in ids {
                 group.addTask {
                     let val = try? await self.scaleTeam(id: id)
-                    if let val { await debugPrintScaleTeam(id: id, payload: val) }
+                    // if let val { await debugPrintScaleTeam(id: id, payload: val) }
                     return (id, val)
                 }
             }
@@ -754,6 +859,28 @@ final class SlotsRepository {
             }
         }
         return result
+    }
+
+    func deleteEvaluationSlots(ids: [Int]) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for id in ids {
+                group.addTask { try await self.deleteEvaluationSlot(id: id) }
+            }
+            try await group.waitForAll()
+        }
+    }
+
+    func deleteEvaluationSlot(id: Int) async throws {
+        let ep = Endpoint(path: "/v2/slots/\(id)", method: .delete)
+        do {
+            struct _NoContent: Decodable {}
+            _ = try await api.request(ep, as: _NoContent.self)
+        } catch let e as APIError {
+            if case .decoding = e { return }
+            throw e
+        } catch {
+            throw error
+        }
     }
 }
 
@@ -768,56 +895,56 @@ private extension Date {
     }
 }
 
-@MainActor
-func debugPrintSlots(forDay day: Date, timeZone: TimeZone = .current) async {
-    var cal = Calendar(identifier: .gregorian)
-    cal.timeZone = timeZone
-    let repo = SlotsRepository.shared
-    let startOfDay = cal.startOfDay(for: day)
-    let end = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-    let begin = repo.anchorBegin(forDay: day, timeZone: timeZone)
-    let items = [
-        URLQueryItem(name: "range[begin_at]", value: "\(DateParser.isoString(begin)),\(DateParser.isoString(end))"),
-        URLQueryItem(name: "page[size]", value: "100")
-    ]
-    let ep = Endpoint(path: "/v2/me/slots", queryItems: items)
-    do {
-        let raw: [JSONValue] = try await APIClient.shared.request(ep, as: [JSONValue].self)
-        var output = ""
-        var count = 0
-        for slot in raw {
-            if case .object(let dict) = slot {
-                let beginAt = dict["begin_at"] ?? .null
-                let endAt = dict["end_at"] ?? .null
-                let id = dict["id"] ?? .null
-                let scaleTeam = dict["scale_team"] ?? .null
-                count += 1
-                output += "##### SLOT \(count) #####\nid: \(id)\nbegin_at: \(beginAt)\nend_at: \(endAt)\nscale_team: \(scaleTeam)\n\n"
-            }
-        }
-        print("==== /v2/me/slots KEYS ====\n\(output)===========================")
-    } catch {
-        print("==== /v2/me/slots RAW ERROR ====\n\(error)\n================================")
-    }
-}
+// @MainActor
+// func debugPrintSlots(forDay day: Date, timeZone: TimeZone = .current) async {
+//     var cal = Calendar(identifier: .gregorian)
+//     cal.timeZone = timeZone
+//     let repo = SlotsRepository.shared
+//     let startOfDay = cal.startOfDay(for: day)
+//     let end = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+//     let begin = repo.anchorBegin(forDay: day, timeZone: timeZone)
+//     let items = [
+//         URLQueryItem(name: "range[begin_at]", value: "\(DateParser.isoString(begin)),\(DateParser.isoString(end))"),
+//         URLQueryItem(name: "page[size]", value: "100")
+//     ]
+//     let ep = Endpoint(path: "/v2/me/slots", queryItems: items)
+//     do {
+//         let raw: [JSONValue] = try await APIClient.shared.request(ep, as: [JSONValue].self)
+//         var output = ""
+//         var count = 0
+//         for slot in raw {
+//             if case .object(let dict) = slot {
+//                 let beginAt = dict["begin_at"] ?? .null
+//                 let endAt = dict["end_at"] ?? .null
+//                 let id = dict["id"] ?? .null
+//                 let scaleTeam = dict["scale_team"] ?? .null
+//                 count += 1
+//                 output += "##### SLOT \(count) #####\nid: \(id)\nbegin_at: \(beginAt)\nend_at: \(endAt)\nscale_team: \(scaleTeam)\n\n"
+//             }
+//         }
+//         print("==== /v2/me/slots KEYS ====\n\(output)===========================")
+//     } catch {
+//         print("==== /v2/me/slots RAW ERROR ====\n\(error)\n================================")
+//     }
+// }
 
-@MainActor
-func debugPrintScaleTeam(id: Int, payload: JSONValue) async {
-    let enc = JSONEncoder()
-    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    if let data = try? enc.encode(payload), let text = String(data: data, encoding: .utf8) {
-        print("==== /v2/scale_teams/\(id) RAW ====\n\(text)\n====================================")
-    }
-}
+// @MainActor
+// func debugPrintScaleTeam(id: Int, payload: JSONValue) async {
+//     let enc = JSONEncoder()
+//     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+//     if let data = try? enc.encode(payload), let text = String(data: data, encoding: .utf8) {
+//         print("==== /v2/scale_teams/\(id) RAW ====\n\(text)\n====================================")
+//     }
+// }
 
-@MainActor
-func debugPrintCreatedSlot(_ slots: [EvaluationSlot]) async {
-    let enc = JSONEncoder()
-    enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    if let data = try? enc.encode(slots), let text = String(data: data, encoding: .utf8) {
-        print("==== CREATED /v2/slots ====\n\(text)\n===========================")
-    }
-}
+// @MainActor
+// func debugPrintCreatedSlot(_ slots: [EvaluationSlot]) async {
+//     let enc = JSONEncoder()
+//     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+//     if let data = try? enc.encode(slots), let text = String(data: data, encoding: .utf8) {
+//         print("==== CREATED /v2/slots ====\n\(text)\n===========================")
+//     }
+// }
 
 func describeCreateFailure(begin: Date, end: Date, error: Error) -> String {
     let isoBegin = DateParser.isoString(begin)
@@ -871,5 +998,34 @@ func describeCreateFailure(begin: Date, end: Date, error: Error) -> String {
         let ns = error as NSError
         print("==== CREATE /v2/slots FAILED ====\nPayload: {\"slot\":{\"begin_at\":\"\(isoBegin)\",\"end_at\":\"\(isoEnd)\"}}\nError: [\(ns.domain)#\(ns.code)] \(ns.localizedDescription)\n==================================")
         return "La création du slot a échoué. \(ns.localizedDescription)"
+    }
+}
+
+func describeDeleteFailure(ids: [Int], error: Error) -> String {
+    switch error {
+    case let apiErr as APIError:
+        switch apiErr {
+        case .unauthorized:
+            return "Authentification requise. Réessaie après t’être reconnecté."
+        case .rateLimited:
+            return "Trop de requêtes. Réessaie dans quelques instants."
+        case .http(let status, let body):
+            if status == 403 { return "Tu n’as pas les droits pour supprimer ce slot." }
+            if status == 404 { return "Ce slot n’existe plus." }
+            if status == 409 { return "Ce slot ne peut pas être supprimé." }
+            if let body, !body.isEmpty { return body }
+            return "Erreur serveur (\(status))."
+        case .decoding:
+            return "Réponse invalide du serveur."
+        case .transport(let e):
+            switch e.code {
+            case .notConnectedToInternet: return "Pas de connexion Internet."
+            case .timedOut: return "Délai dépassé."
+            default: return "Erreur réseau (\(e.code.rawValue))."
+            }
+        }
+    default:
+        let ns = error as NSError
+        return "La suppression a échoué. \(ns.localizedDescription)"
     }
 }
