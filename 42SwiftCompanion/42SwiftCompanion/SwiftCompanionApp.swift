@@ -5,6 +5,7 @@ struct _2SwiftCompanionApp: App {
     @StateObject private var authService = AuthService.shared
     @StateObject private var profileStore = ProfileStore.shared
     @StateObject private var theme = Theme.shared
+    @StateObject private var network = NetworkMonitor.shared
 
     var body: some Scene {
         WindowGroup {
@@ -26,13 +27,22 @@ struct _2SwiftCompanionApp: App {
             }
             .tint(theme.accentColor)
             .environmentObject(theme)
-            .onAppear { authService.checkAuthentication() }
+            .onAppear {
+                authService.checkAuthentication()
+                network.start()
+            }
+            .onDisappear {
+                network.stop()
+            }
             .onChange(of: authService.isAuthenticated) { _, newValue in
                 if newValue, !authService.currentLogin.isEmpty { profileStore.start(for: authService.currentLogin) }
                 if !newValue { profileStore.stop() }
             }
             .onChange(of: authService.currentLogin) { _, login in
                 if authService.isAuthenticated, !login.isEmpty { profileStore.start(for: login) }
+            }
+            .overlay(alignment: .top) {
+                ConnectivityOverlay(isOnline: network.isOnline, showOnlineToast: network.showOnlineToast)
             }
             .overlay {
                 if authService.isPostWebAuthLoading {
