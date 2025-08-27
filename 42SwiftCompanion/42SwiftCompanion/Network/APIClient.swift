@@ -57,7 +57,7 @@ actor APIClient {
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = 30
         cfg.timeoutIntervalForResource = 60
-        cfg.waitsForConnectivity = true
+        cfg.waitsForConnectivity = false
         cfg.allowsExpensiveNetworkAccess = true
         cfg.allowsConstrainedNetworkAccess = true
         cfg.httpAdditionalHeaders = ["Accept": "application/json"]
@@ -65,12 +65,49 @@ actor APIClient {
     }
 
     func request<T: Decodable>(_ endpoint: Endpoint, as type: T.Type) async throws -> T {
+        try await performRequest(endpoint, as: T.self)
+    }
+
+    func request<T: Decodable>(_ endpoint: Endpoint, as type: T.Type, deadline: TimeInterval?, fallback: (() async throws -> T)? = nil) async throws -> T {
+        guard let deadline else { return try await performRequest(endpoint, as: T.self) }
+        do {
+            return try await withTimeout(deadline) { try await self.performRequest(endpoint, as: T.self) }
+        } catch let e as URLError where e.code == .timedOut {
+            if let f = fallback { return try await f() }
+            throw APIError.transport(e)
+        } catch {
+            throw error
+        }
+    }
+
+    func pagedRequest<T: Decodable>(_ make: (Int) -> Endpoint, delayNs: UInt64 = 700_000_000) async throws -> [T] {
+        try await performPagedRequest(make, delayNs: delayNs)
+    }
+
+    func pagedRequest<T: Decodable>(
+        _ make: @escaping (Int) -> Endpoint,
+        delayNs: UInt64 = 700_000_000,
+        deadline: TimeInterval?,
+        fallback: (() async throws -> [T])? = nil
+    ) async throws -> [T] {
+        guard let deadline else { return try await performPagedRequest(make, delayNs: delayNs) }
+        do {
+            return try await withTimeout(deadline) { try await self.performPagedRequest(make, delayNs: delayNs) }
+        } catch let e as URLError where e.code == .timedOut {
+            if let f = fallback { return try await f() }
+            throw APIError.transport(e)
+        } catch {
+            throw error
+        }
+    }
+
+    private func performRequest<T: Decodable>(_ endpoint: Endpoint, as type: T.Type) async throws -> T {
         let (data, _) = try await send(endpoint, retriedAfter401: false)
         do { return try decoder.decode(T.self, from: data) }
         catch { throw APIError.decoding(error) }
     }
 
-    func pagedRequest<T: Decodable>(_ make: (Int) -> Endpoint, delayNs: UInt64 = 700_000_000) async throws -> [T] {
+    private func performPagedRequest<T: Decodable>(_ make: (Int) -> Endpoint, delayNs: UInt64) async throws -> [T] {
         var all: [T] = []
         var page = 1
         while true {
@@ -88,6 +125,19 @@ actor APIClient {
         return all
     }
 
+    private func withTimeout<T>(_ seconds: TimeInterval, _ operation: @Sendable @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw URLError(.timedOut)
+            }
+            guard let result = try await group.next() else { throw URLError(.unknown) }
+            group.cancelAll()
+            return result
+        }
+    }
+
     private func send(_ endpoint: Endpoint, retriedAfter401: Bool) async throws -> (Data, HTTPURLResponse) {
         guard let token = await AuthService.shared.accessToken, !token.isEmpty else { throw APIError.unauthorized }
         guard let baseReq = endpoint.urlRequest(token: token) else { throw APIError.http(status: 0, body: "Bad URL") }
@@ -95,7 +145,7 @@ actor APIClient {
         while true {
             try Task.checkCancellation()
             var req = baseReq
-            req.networkServiceType = .responsiveData
+            req.networkServiceType = URLRequest.NetworkServiceType.responsiveData
             do {
                 let (data, response) = try await session.data(for: req)
                 guard let http = response as? HTTPURLResponse else { throw APIError.http(status: 0, body: "No HTTP") }
