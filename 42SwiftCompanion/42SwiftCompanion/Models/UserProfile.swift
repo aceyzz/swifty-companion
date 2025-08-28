@@ -437,3 +437,15 @@ struct UpcomingEvaluation: Identifiable, Equatable {
     let disclaimerLine: String?
     let durationMinutes: Int
 }
+
+struct ProfileItem: Identifiable, Equatable {
+    let id: String
+    let icon: String
+    let title: String
+    let subtitle: String?
+    let badges: [String]
+    let sheetIcon: String
+    let sheetTitle: String
+    let sheetSubtexts: [String]
+    let link: URL?
+}

@@ -129,3 +129,60 @@ struct ActionBar: View {
         }
     }
 }
+
+struct StatPill: View {
+    @EnvironmentObject var theme: Theme
+    let title: String
+    let value: String
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(value).font(.caption)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(theme.accentColor.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(theme.accentColor.opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
+struct ShimmerBar: View {
+    let height: CGFloat
+    @State private var animate = false
+    var body: some View {
+        GeometryReader { geo in
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.25))
+                .overlay {
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0),
+                                    .init(color: .white.opacity(0.7), location: 0.5),
+                                    .init(color: .clear, location: 1)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * 0.45)
+                        .offset(x: animate ? geo.size.width : -geo.size.width)
+                        .blendMode(.plusLighter)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .frame(height: height)
+        .onAppear {
+            withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
+                animate = true
+            }
+        }
+    }
+}

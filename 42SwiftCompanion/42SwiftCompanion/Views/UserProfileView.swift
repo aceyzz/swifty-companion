@@ -152,7 +152,7 @@ struct UserProfileView: View {
     }
 }
 
-private struct IdentityCard: View {
+struct IdentityCard: View {
     let profile: UserProfile
 
     var body: some View {
@@ -164,21 +164,6 @@ private struct IdentityCard: View {
                     Text(profile.userNameWithTitle == profile.login ? profile.login : (profile.userNameWithTitle ?? profile.login))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-					// if profile.displayableHostOrNA != "Non disponible" {
-					// 	if let url = URL(string: "https://meta.intra.42.fr/clusters") {
-					// 		Link(profile.displayableHostOrNA, destination: url)
-					// 			.font(.footnote)
-					// 			.foregroundStyle(.secondary)
-					// 	} else {
-					// 		Text(profile.displayableHostOrNA)
-					// 			.font(.footnote)
-					// 			.foregroundStyle(.secondary)
-					// 	}
-					// } else {
-					// 	Text(profile.displayableHostOrNA)
-					// 		.font(.footnote)
-					// 		.foregroundStyle(.secondary)
-					// }
                     if let active = profile.isActive {
                         Text(active ? "Actif" : "Inactif")
                             .font(.footnote.weight(.semibold))
@@ -276,7 +261,7 @@ private struct IdentityCard: View {
     }
 }
 
-private struct IdentitySkeleton: View {
+struct IdentitySkeleton: View {
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             RoundedRectangle(cornerRadius: 16).fill(.gray.opacity(0.25)).frame(width: 120, height: 120)
@@ -290,7 +275,7 @@ private struct IdentitySkeleton: View {
     }
 }
 
-private struct Avatar: View {
+struct Avatar: View {
     let url: URL?
     var body: some View {
         Group {
@@ -306,7 +291,7 @@ private struct Avatar: View {
     }
 }
 
-private struct FilterChip: View {
+struct FilterChip: View {
     @EnvironmentObject var theme: Theme
     let text: String
     let isSelected: Bool
@@ -334,30 +319,7 @@ private struct FilterChip: View {
     }
 }
 
-
-private struct ChipsBar<Item: Identifiable>: View where Item.ID: Equatable {
-    let items: [Item]
-    @Binding var selection: Item.ID
-    let label: (Item) -> String
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(items) { item in
-                    let isSel = item.id == selection
-                    FilterChip(text: label(item), isSelected: isSel) {
-                        withAnimation(.snappy) { selection = item.id }
-                    }
-                }
-            }
-            .padding(.vertical, 2)
-        }
-    }
-}
-
-private enum StatCardStyle { case compact, regular }
-
-private struct StatCard: View {
+struct StatCard: View {
     @EnvironmentObject var theme: Theme
     let style: StatCardStyle
     let title: String
@@ -401,7 +363,7 @@ private struct StatCard: View {
     }
 }
 
-private struct StatusCursusCard: View {
+struct StatusCursusCard: View {
     let profile: UserProfile
     @State private var selectedCursusId: Int?
 
@@ -492,7 +454,7 @@ private struct StatusCursusCard: View {
     }
 }
 
-private struct CoalitionsCard: View {
+struct CoalitionsCard: View {
     let profile: UserProfile
     @State private var selectedCoalitionId: Int?
 
@@ -543,36 +505,6 @@ private struct CoalitionsCard: View {
     }
 }
 
-private struct LoadableSection<Content: View, Loading: View, Failed: View>: View {
-    let title: String
-    let state: UserProfileLoader.SectionLoadState
-    let loading: Loading
-    let failed: Failed
-    let content: Content
-
-    init(title: String,
-         state: UserProfileLoader.SectionLoadState,
-         @ViewBuilder loading: () -> Loading,
-         @ViewBuilder failed: () -> Failed,
-         @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.state = state
-        self.loading = loading()
-        self.failed = failed()
-        self.content = content()
-    }
-
-    var body: some View {
-        SectionCard(title: title) {
-            switch state {
-            case .loading, .idle: loading
-            case .failed: failed
-            case .loaded: content
-            }
-        }
-    }
-}
-
 struct MyProfileView: View {
     @EnvironmentObject var profileStore: ProfileStore
     var body: some View {
@@ -590,255 +522,7 @@ struct MyProfileView: View {
     }
 }
 
-struct ProfileTextList: View {
-    let texts: [String]
-    var font: Font = .body
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(texts.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }, id: \.self) { text in
-                Text(text).font(font)
-            }
-        }
-    }
-}
-
-private struct LogTimeSection: View {
-	@ObservedObject var loader: UserProfileLoader
-	@State private var didAutoRetry = false
-	@State private var lastRefreshMarker: Date?
-	@State private var isRefreshing = false
-
-	var body: some View {
-		LoadableSection(title: "Log time", state: loader.logState) {
-			LoadingListPlaceholder(lines: 1, compact: true)
-		} failed: {
-			RetryRow(title: "Impossible de charger le log time") { loader.retryLog() }
-		} content: {
-			VStack(alignment: .leading, spacing: 0) {
-				WeeklyLogCard(logs: loader.weeklyLog)
-				HStack {
-					Spacer()
-					Button {
-						isRefreshing = true
-						loader.retryLog()
-						DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-							isRefreshing = false
-						}
-					} label: {
-						Image(systemName: isRefreshing ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.triangle.2.circlepath")
-							.rotationEffect(isRefreshing ? .degrees(360) : .degrees(0))
-							.animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
-					}
-					.buttonStyle(.plain)
-				}
-			}
-		}
-		.task {
-			if loader.logState == .idle { loader.retryLog() }
-		}
-		.onChange(of: loader.lastUpdated) { newValue, _ in
-			guard let stamp = newValue, stamp != lastRefreshMarker else { return }
-			lastRefreshMarker = stamp
-			if loader.logState != .loading { loader.retryLog() }
-		}
-		.onChange(of: loader.logState) { newValue, _ in
-			if newValue == .loading { didAutoRetry = false }
-			if newValue == .failed && !didAutoRetry {
-				didAutoRetry = true
-				loader.retryLog()
-			}
-		}
-	}
-}
-
-struct WeeklyLogCard: View {
-    @EnvironmentObject var theme: Theme
-    let logs: [DailyLog]
-
-    private var series: [DailyLog] {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone.current
-        let today = cal.startOfDay(for: Date())
-        let start = cal.date(byAdding: .day, value: -13, to: today) ?? today
-
-        var bucket: [Date: Double] = [:]
-        for i in 0..<14 {
-            if let d = cal.date(byAdding: .day, value: i, to: start) {
-                bucket[cal.startOfDay(for: d)] = 0
-            }
-        }
-        for l in logs {
-            let d = cal.startOfDay(for: l.date)
-            if bucket[d] != nil { bucket[d, default: 0] += l.hours }
-        }
-        return bucket.keys.sorted().map { DailyLog(date: $0, hours: bucket[$0] ?? 0) }
-    }
-
-    private var seriesKey: String {
-        series.map { "\($0.date.timeIntervalSince1970)-\($0.hours)" }.joined(separator: "|")
-    }
-
-    private var totalHours: Double { series.reduce(0) { $0 + $1.hours } }
-    private var avgHours: Double { series.isEmpty ? 0 : totalHours / Double(series.count) }
-    private var yMax: Double { max(1, ceil((series.map(\.hours).max() ?? 0) + 0.5)) }
-
-    private var xDomain: ClosedRange<Date> {
-        let cal = Calendar.current
-        guard let first = series.first?.date, let last = series.last?.date else {
-            let s = cal.startOfDay(for: Date())
-            let e = cal.date(byAdding: .day, value: 1, to: s) ?? s
-            return s...e
-        }
-        let s = cal.startOfDay(for: first)
-        let e = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: last)) ?? last
-        return s...e
-    }
-
-    private var hasAnyData: Bool { series.contains { $0.hours > 0 } }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Présence en cluster sur les 14 derniers jours (en heures)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 8)
-
-            Chart(series) { item in
-                BarMark(
-                    x: .value("Date", item.date, unit: .day),
-                    y: .value("Heures", item.hours)
-                )
-                .cornerRadius(8)
-                .foregroundStyle(theme.accentColor)
-                .opacity(item.hours > 0 ? 1 : 0.35)
-            }
-            .id(seriesKey)
-            .chartXScale(domain: xDomain)
-            .chartYScale(domain: 0...yMax)
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { value in
-                    AxisGridLine()
-                    AxisValueLabel {
-                        if let d = value.as(Date.self) { Text(d, format: .dateTime.weekday(.narrow)) }
-                    }
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisGridLine()
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) { Text(v.formatted(.number.precision(.fractionLength(0)))) }
-                    }
-                }
-            }
-            .frame(height: 140)
-            .overlay {
-                if !hasAnyData {
-                    VStack(spacing: 6) {
-                        Image(systemName: "wave.3.right.circle").font(.title3).foregroundStyle(.secondary)
-                        Text("Aucune présence sur les 14 derniers jours").font(.footnote).foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            HStack(spacing: 10) {
-                StatPill(title: "Total", value: formattedHours(totalHours))
-                StatPill(title: "Moyenne", value: formattedHours(avgHours))
-                Spacer()
-            }
-        }
-    }
-
-    private func formattedHours(_ h: Double) -> String {
-        let minutes = Int((h * 60).rounded())
-        let hh = minutes / 60
-        let mm = minutes % 60
-        return mm == 0 ? "\(hh) h" : "\(hh) h \(mm) min"
-    }
-}
-
-private struct StatPill: View {
-    @EnvironmentObject var theme: Theme
-    let title: String
-    let value: String
-    var body: some View {
-        HStack(spacing: 6) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.caption)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(theme.accentColor.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(theme.accentColor.opacity(0.2), lineWidth: 1)
-        )
-    }
-}
-
-struct LoadingListPlaceholder: View {
-    let lines: Int
-    var compact: Bool = false
-    var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
-            ForEach(0..<lines, id: \.self) { _ in
-                ShimmerBar(height: compact ? 10 : 14)
-            }
-        }
-    }
-}
-
-private struct ShimmerBar: View {
-    let height: CGFloat
-    @State private var animate = false
-    var body: some View {
-        GeometryReader { geo in
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.gray.opacity(0.25))
-                .overlay {
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0),
-                                    .init(color: .white.opacity(0.7), location: 0.5),
-                                    .init(color: .clear, location: 1)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geo.size.width * 0.45)
-                        .offset(x: animate ? geo.size.width : -geo.size.width)
-                        .blendMode(.plusLighter)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-        }
-        .frame(height: height)
-        .onAppear {
-            withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
-                animate = true
-            }
-        }
-    }
-}
-
-private struct ProfileItem: Identifiable, Equatable {
-    let id: String
-    let icon: String
-    let title: String
-    let subtitle: String?
-    let badges: [String]
-    let sheetIcon: String
-    let sheetTitle: String
-    let sheetSubtexts: [String]
-    let link: URL?
-}
-
-private enum ItemsSource {
+enum ItemsSource {
     case flat([ProfileItem])
     case grouped(GroupedItems)
     struct GroupedItems {
@@ -851,7 +535,7 @@ private enum ItemsSource {
     }
 }
 
-private struct UnifiedItemsSection: View {
+struct UnifiedItemsSection: View {
     let title: String
     let state: UserProfileLoader.SectionLoadState
     let source: ItemsSource
@@ -956,168 +640,5 @@ private struct UnifiedItemsSection: View {
     private struct KeyValue: Identifiable, Hashable {
         let id: Int
         let label: String
-    }
-}
-
-
-private struct ItemDetailSheet: View {
-    @EnvironmentObject var theme: Theme
-    let item: ProfileItem
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 12) {
-                    Image(systemName: item.sheetIcon)
-                        .frame(width: 48, height: 48)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(theme.accentColor.opacity(0.12)))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.sheetTitle).font(.title3).bold()
-                        if let subtitle = item.subtitle, !subtitle.isEmpty {
-                            Text(subtitle).font(.footnote).foregroundStyle(.secondary)
-                        }
-                        if !item.badges.isEmpty {
-                            HStack(spacing: 8) {
-                                ForEach(Array(item.badges.enumerated()), id: \.offset) { _, text in
-                                    CapsuleBadge(text: text)
-                                }
-                            }
-                        }
-                    }
-                    Spacer()
-                }
-                Divider()
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(item.sheetSubtexts.indices, id: \.self) { idx in
-                        let text = item.sheetSubtexts[idx]
-                        if text.starts(with: "https://"), let url = URL(string: text) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "link")
-                                Link("Ouvrir le lien", destination: url)
-                                    .font(.subheadline)
-                            }
-                        } else {
-                            Text(text).font(.subheadline)
-                        }
-                    }
-                }
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Détails")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-}
-
-private enum ItemsBuilder {
-    static func achievements(from profile: UserProfile) -> [ProfileItem] {
-        let grouped = Dictionary(grouping: profile.achievements, by: { $0.name })
-        let groups = grouped.values.map { arr -> ProfileItem in
-            let first = arr.first
-            let name = first?.name ?? ""
-            let symbol = AchievementIconProvider.symbol(for: name, description: first?.description)
-            let count = arr.count
-            let subtitle = "×\(count)"
-            let details = arr.sorted { ($0.count ?? 1) > ($1.count ?? 1) }.map { "\($0.name): \($0.description)" }
-            return ProfileItem(
-                id: name,
-                icon: symbol,
-                title: name,
-                subtitle: subtitle,
-                badges: [],
-                sheetIcon: symbol,
-                sheetTitle: name,
-                sheetSubtexts: details,
-                link: nil
-            )
-        }
-        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-        return groups
-    }
-
-    static func activeProjectsGrouped(from profile: UserProfile) -> ItemsSource.GroupedItems {
-        let mapById = Dictionary(grouping: profile.activeProjects.compactMap { ap -> (Int, UserProfile.ActiveProject)? in
-            guard let cid = ap.cursusId else { return nil }
-            return (cid, ap)
-        }, by: { $0.0 })
-        let options = optionsMap(profile: profile, presentIds: Set(mapById.keys))
-        let itemsById = Dictionary(uniqueKeysWithValues: mapById.map { (key, tupleArray) in
-            let ordered = tupleArray
-                .map { $0.1 }
-                .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
-            let items = ordered.map { p in
-                let subtitle = [p.status, p.teamStatus].compactMap { $0 }.joined(separator: " • ")
-                var badges: [String] = []
-                if let d = p.createdAt { badges.append(UserProfile.Formatters.shortDate.string(from: d)) }
-                if let r = p.retry, r > 0 { badges.append("Retry \(r)") }
-                var sheetLines: [String] = badges
-                if let url = p.repoURL { sheetLines.append(url.absoluteString) }
-                return ProfileItem(
-                    id: p.id,
-                    icon: "hammer.fill",
-                    title: p.name,
-                    subtitle: subtitle,
-                    badges: badges,
-                    sheetIcon: "hammer.fill",
-                    sheetTitle: p.name,
-                    sheetSubtexts: sheetLines,
-                    link: p.repoURL
-                )
-            }
-            return (key, items)
-        })
-        return .init(options: options, itemsById: itemsById)
-    }
-
-    static func finishedProjectsGrouped(from profile: UserProfile) -> ItemsSource.GroupedItems {
-        let mapById = Dictionary(grouping: profile.finishedProjects.compactMap { fp -> (Int, UserProfile.Project)? in
-            guard let cid = fp.cursusId else { return nil }
-            return (cid, fp)
-        }, by: { $0.0 })
-        let options = optionsMap(profile: profile, presentIds: Set(mapById.keys))
-        let itemsById = Dictionary(uniqueKeysWithValues: mapById.map { (key, tupleArray) in
-            let ordered = tupleArray
-                .map { $0.1 }
-                .sorted { ($0.closedAt ?? .distantPast) > ($1.closedAt ?? .distantPast) }
-            let items = ordered.map { p in
-                var badges: [String] = []
-                if let d = p.closedAt { badges.append(UserProfile.Formatters.shortDate.string(from: d)) }
-                if let v = p.validated { badges.append(v ? "Validé" : "Non validé") }
-                if let m = p.finalMark { badges.append("Note \(m)") }
-                if let r = p.retry, r > 0 { badges.append("Retry \(r)") }
-                var sheetLines = badges
-                if let url = p.projectURL { sheetLines.append(url.absoluteString) }
-                return ProfileItem(
-                    id: p.id,
-                    icon: "checkmark.seal.fill",
-                    title: p.name,
-                    subtitle: nil,
-                    badges: badges,
-                    sheetIcon: "checkmark.seal.fill",
-                    sheetTitle: p.name,
-                    sheetSubtexts: sheetLines,
-                    link: p.projectURL
-                )
-            }
-            return (key, items)
-        })
-        return .init(options: options, itemsById: itemsById)
-    }
-
-    private static func optionsMap(profile: UserProfile, presentIds: Set<Int>) -> [Int: String] {
-        let filtered = profile.cursus.filter { presentIds.contains($0.id) }
-        var pairs: [(Int, String, Date?)] = filtered.map { c in
-            let title = c.name ?? "Cursus \(c.id)"
-            let order = c.endAt ?? c.beginAt
-            return (c.id, title, order)
-        }
-        pairs.sort { (l, r) in
-            let ld = l.2 ?? .distantPast
-            let rd = r.2 ?? .distantPast
-            return ld > rd
-        }
-        var map: [Int: String] = [:]
-        for (id, title, _) in pairs { map[id] = title }
-        return map
     }
 }

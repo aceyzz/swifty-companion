@@ -137,3 +137,59 @@ func describeDeleteFailure(ids: [Int], error: Error) -> String {
         return "La suppression a échoué. \(ns.localizedDescription)"
     }
 }
+
+struct DeletionHUD: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Suppression…").font(.callout.weight(.semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .shadow(radius: 10, y: 6)
+        .accessibilityLabel("Suppression en cours")
+    }
+}
+
+struct LoadingListPlaceholder: View {
+    let lines: Int
+    var compact: Bool = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+            ForEach(0..<lines, id: \.self) { _ in
+                ShimmerBar(height: compact ? 10 : 14)
+            }
+        }
+    }
+}
+
+struct LoadableSection<Content: View, Loading: View, Failed: View>: View {
+    let title: String
+    let state: UserProfileLoader.SectionLoadState
+    let loading: Loading
+    let failed: Failed
+    let content: Content
+
+    init(title: String,
+         state: UserProfileLoader.SectionLoadState,
+         @ViewBuilder loading: () -> Loading,
+         @ViewBuilder failed: () -> Failed,
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.state = state
+        self.loading = loading()
+        self.failed = failed()
+        self.content = content()
+    }
+
+    var body: some View {
+        SectionCard(title: title) {
+            switch state {
+            case .loading, .idle: loading
+            case .failed: failed
+            case .loaded: content
+            }
+        }
+    }
+}
