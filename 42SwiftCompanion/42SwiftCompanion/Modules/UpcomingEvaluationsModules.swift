@@ -160,11 +160,11 @@ struct UpcomingEvaluationsView: View {
                                 ForEach(items) { it in
                                     InfoPillRow(
                                         leading: .system("calendar"),
-                                        title: it.projectName ?? "Projet inconnu",
+                                        title: it.projectName ?? "Nom du projet invisible",
                                         subtitle: rangeText(it),
                                         badges: badges(it),
                                         onTap: { withAnimation(.snappy) { vm.selected = it } },
-                                        iconTint: it.role == .corrector ? .red : .green
+										iconTint: it.role == .corrector ? .red : .cyan
                                     )
                                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                                 }
@@ -189,14 +189,17 @@ struct UpcomingEvaluationsView: View {
         SlotsViewModel.hourFormatter.string(from: s) + " – " + SlotsViewModel.hourFormatter.string(from: e)
     }
 
-    private func badges(_ it: UpcomingEvaluation) -> [String] {
-        var arr: [String] = []
-        arr.append(it.role == .corrector ? "À donner" : "À recevoir")
-        if !it.correctedLogins.isEmpty { arr.append("Évalué: \(it.correctedLogins.joined(separator: ", "))") }
-        if let c = it.correctorLogin { arr.append("Correcteur: \(c)") }
-        if it.durationMinutes > 0 { arr.append("\(it.durationMinutes) min") }
-        return arr
-    }
+	private func badges(_ it: UpcomingEvaluation) -> [String] {
+		var arr = [String]()
+		switch it.role {
+		case .corrector:
+			if !it.correctedLogins.isEmpty { arr.append(it.correctedLogins.joined(separator: ", ")) }
+		default:
+			if let c = it.correctorLogin { arr.append(c) }
+		}
+		if it.durationMinutes > 0 { arr.append("\(it.durationMinutes) min") }
+		return arr
+	}
 }
 
 struct UpcomingEvaluationDetailSheet: View {
@@ -217,7 +220,7 @@ struct UpcomingEvaluationDetailSheet: View {
                             if item.durationMinutes > 0 {
                                 LabeledContent("Durée") { Text("\(item.durationMinutes) min").font(.callout) }
                             }
-                            LabeledContent("Rôle") { Text(item.role == .corrector ? "Corriger" : "Être corrigé").font(.callout) }
+                            LabeledContent("Rôle") { Text(item.role == .corrector ? "Évaluateur" : "Évalué").font(.callout) }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -235,11 +238,26 @@ struct UpcomingEvaluationDetailSheet: View {
                     }
 
                     SectionCard(title: "Consignes") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let s = item.introLine { LabeledContent("Introduction") { Text(s).font(.callout) } }
-                            if let s = item.guidelinesLine { LabeledContent("Guidelines") { Text(s).font(.callout) } }
-                            if let s = item.disclaimerLine { LabeledContent("Disclaimer") { Text(s).font(.callout) } }
-                        }
+						VStack(alignment: .leading, spacing: 12) {
+							if let s = item.introLine {
+								VStack(alignment: .leading, spacing: 4) {
+									Text("Introduction").font(.callout.weight(.semibold)).foregroundColor(.accentColor)
+									Text(s).font(.callout)
+								}
+							}
+							if let s = item.guidelinesLine {
+								VStack(alignment: .leading, spacing: 4) {
+									Text("Guidelines").font(.callout.weight(.semibold)).foregroundColor(.accentColor)
+									Text(s).font(.callout)
+								}
+							}
+							if let s = item.disclaimerLine {
+								VStack(alignment: .leading, spacing: 4) {
+									Text("Disclaimer").font(.callout.weight(.semibold)).foregroundColor(.accentColor)
+									Text(s).font(.callout)
+								}
+							}
+						}
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
