@@ -10,7 +10,7 @@ struct SlotsPageView: View {
             ZStack(alignment: .bottomTrailing) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        Text("Mes créneaux")
+                        Text("Évaluations")
                             .font(.largeTitle.bold())
                             .frame(maxWidth: .infinity, alignment: .leading)
 
