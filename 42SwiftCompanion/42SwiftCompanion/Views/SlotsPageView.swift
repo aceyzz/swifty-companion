@@ -6,71 +6,77 @@ struct SlotsPageView: View {
     @StateObject private var vm = SlotsViewModel()
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    UpcomingEvaluationsView()
+        NavigationStack {
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        Text("Mes créneaux")
+                            .font(.largeTitle.bold())
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Header(selectedDay: $vm.selectedDay,
-                           weekdayTitle: vm.weekdayTitle,
-                           dayLongTitle: vm.dayLongTitle,
-                           canGoPrevious: vm.canGoPrevious,
-                           goPrev: { vm.shiftDay(by: -1) },
-                           goNext: { vm.shiftDay(by: +1) })
+                        UpcomingEvaluationsView()
 
-                    SectionCard(title: "Mes slots") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ActionBar(isLoading: vm.isLoading,
-                                      lastUpdated: vm.lastUpdated,
-                                      refresh: { Task { await vm.refresh() } })
+                        Header(selectedDay: $vm.selectedDay,
+                               weekdayTitle: vm.weekdayTitle,
+                               dayLongTitle: vm.dayLongTitle,
+                               canGoPrevious: vm.canGoPrevious,
+                               goPrev: { vm.shiftDay(by: -1) },
+                               goNext: { vm.shiftDay(by: +1) })
 
-                            Content(state: vm.state,
-                                    label: vm.label(for:),
-                                    rangeText: vm.rangeText(for:),
-                                    badges: vm.badges(for:),
-                                    tint: vm.iconTint(for:),
-                                    isDeleting: vm.isDeleting(_ :),
-                                    onDelete: { vm.askDelete($0) })
+                        SectionCard(title: "Mes slots") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ActionBar(isLoading: vm.isLoading,
+                                          lastUpdated: vm.lastUpdated,
+                                          refresh: { Task { await vm.refresh() } })
+
+                                Content(state: vm.state,
+                                        label: vm.label(for:),
+                                        rangeText: vm.rangeText(for:),
+                                        badges: vm.badges(for:),
+                                        tint: vm.iconTint(for:),
+                                        isDeleting: vm.isDeleting(_ :),
+                                        onDelete: { vm.askDelete($0) })
+                            }
                         }
                     }
+                    .padding()
                 }
-                .padding()
-            }
 
-            CreateFab { vm.openCreateSheet() }
-        }
-        .onAppear { vm.bootstrap() }
-        .onAppear { if case .idle = vm.state { Task { await vm.refresh() }}}
-        .onChange(of: vm.selectedDay) { Task { await vm.refresh() }}
-        .animation(.snappy, value: vm.stateKey)
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $vm.showCreateSheet) {
-            CreateSlotSheet(vm: vm)
-        }
-        .alert(item: $vm.alertItem) { item in
-            Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
-        }
-        .confirmationDialog(
-            "Supprimer ce slot ?",
-            isPresented: Binding(get: { vm.pendingDeletion != nil },
-                                set: { if !$0 { vm.pendingDeletion = nil } }),
-            presenting: vm.pendingDeletion
-        ) { group in
-            Button("Supprimer", role: .destructive) { Task { await vm.confirmDelete(group) } }
-            Button("Annuler", role: .cancel) {}
-        } message: { group in
-            Text(vm.deleteSummary(for: group))
-        }
-        .overlay(alignment: .top) {
-            if vm.isDeleting {
-                DeletionHUD()
-                    .padding(.top, 8)
-                    .padding(.horizontal, 12)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(1)
+                CreateFab { vm.openCreateSheet() }
             }
+            .onAppear { vm.bootstrap() }
+            .onAppear { if case .idle = vm.state { Task { await vm.refresh() }}}
+            .onChange(of: vm.selectedDay) { Task { await vm.refresh() }}
+            .animation(.snappy, value: vm.stateKey)
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $vm.showCreateSheet) {
+                CreateSlotSheet(vm: vm)
+            }
+            .alert(item: $vm.alertItem) { item in
+                Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
+            }
+            .confirmationDialog(
+                "Supprimer ce slot ?",
+                isPresented: Binding(get: { vm.pendingDeletion != nil },
+                                    set: { if !$0 { vm.pendingDeletion = nil } }),
+                presenting: vm.pendingDeletion
+            ) { group in
+                Button("Supprimer", role: .destructive) { Task { await vm.confirmDelete(group) } }
+                Button("Annuler", role: .cancel) {}
+            } message: { group in
+                Text(vm.deleteSummary(for: group))
+            }
+            .overlay(alignment: .top) {
+                if vm.isDeleting {
+                    DeletionHUD()
+                        .padding(.top, 8)
+                        .padding(.horizontal, 12)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(1)
+                }
+            }
+            .animation(.snappy, value: vm.isDeleting)
         }
-        .animation(.snappy, value: vm.isDeleting)
     }
 }
 
@@ -670,7 +676,7 @@ struct CreateSlotSheet: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.visible)
-			.padding(.top, 20)
+            .padding(.top, 20)
         }
         .onAppear { selectedDetent = (vClass == .compact ? .large : .medium) }
         .onChange(of: vClass) { selectedDetent = (vClass == .compact ? .large : .medium) }
