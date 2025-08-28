@@ -82,6 +82,64 @@ struct UserProfile: Identifiable, Codable {
 }
 
 extension UserProfile {
+    init(raw: UserInfoRaw,
+         coalitions: [UserProfile.Coalition] = [],
+         finishedProjects: [UserProfile.Project] = [],
+         activeProjects: [UserProfile.ActiveProject] = [],
+         currentHost: String? = nil) {
+        self.id = raw.login
+        self.login = raw.login
+        self.displayName = raw.displayname
+        self.userNameWithTitle = raw.user_name_with_title
+        self.wallet = raw.wallet
+        self.correctionPoint = raw.correction_point
+        self.imageURL = URL(string: raw.image.link)
+        self.poolMonth = raw.pool_month
+        self.poolYear = raw.pool_year
+        self.campusId = raw.campus_id
+        self.campusName = raw.campus_name
+        self.campusCity = raw.campus_city
+        self.campusCountry = raw.campus_country
+        self.campusTimeZone = raw.campus_time_zone
+        self.campusLanguage = raw.campus_language
+        self.userKind = raw.user_kind
+        self.isActive = raw.isActive
+        self.email = raw.email
+        self.phone = raw.phone
+        self.currentHost = currentHost ?? (raw.location?.isEmpty == false ? raw.location : nil)
+        self.cursus = raw.cursus_users.map {
+            UserProfile.Cursus(
+                id: $0.cursus_id ?? 0,
+                grade: $0.grade,
+                level: $0.level,
+                beginAt: DateParser.iso($0.begin_at),
+                endAt: DateParser.iso($0.end_at),
+                name: $0.cursus.name
+            )
+        }
+        self.coalitions = coalitions
+        self.achievements = raw.achievements.map {
+            let urlString = $0.image.hasPrefix("/") ? "https://api.intra.42.fr\($0.image)" : $0.image
+            return UserProfile.Achievement(id: $0.id, name: $0.name, description: $0.description, image: URL(string: urlString), count: $0.nbr_of_success)
+        }
+        self.finishedProjects = finishedProjects
+        self.activeProjects = activeProjects
+    }
+
+    func with(coalitions: [Coalition]) -> UserProfile {
+        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
+    }
+
+    func with(projectsFinished: [Project], projectsActive: [ActiveProject]) -> UserProfile {
+        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: projectsFinished, activeProjects: projectsActive)
+    }
+
+    func with(currentHost: String?) -> UserProfile {
+        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
+    }
+}
+
+extension UserProfile {
     var displayableContact: [String] {
         var a: [String] = []
         if let email, !email.isEmpty { a.append(email) }
@@ -249,12 +307,13 @@ struct UserInfoRaw: Decodable {
     let campus: [CampusRaw]?
     let kind: String?
     let achievements: [AchievementRaw]
-    let is_active: Bool?
     let email: String?
     let phone: String?
     let titles: [TitleRaw]?
     let titles_users: [TitleUserRaw]?
     let cursus_users: [CursusUserRaw]
+    let location: String?
+    let isActive: Bool?
 
     var image_url: String { image.link }
     var campus_id: Int? { campus?.first?.id }
@@ -265,8 +324,40 @@ struct UserInfoRaw: Decodable {
     var campus_language: String? { campus?.first?.language?.name }
     var user_kind: String? { kind }
     var user_name_with_title: String? {
-        guard let tuser = titles_users?.first(where: { $0.selected == true }), let tid = tuser.title_id, let template = titles?.first(where: { $0.id == tid })?.name else { return login }
+        guard let tuser = titles_users?.first(where: { $0.selected == true }),
+              let tid = tuser.title_id,
+              let template = titles?.first(where: { $0.id == tid })?.name
+        else { return login }
         return template.replacingOccurrences(of: "%login", with: login)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case login, displayname, wallet, correction_point, image, pool_month, pool_year, campus, kind, achievements, email, phone, titles, titles_users, cursus_users, location
+        case activeQuestion = "active?"
+        case isActiveLegacy = "is_active"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        login = try c.decode(String.self, forKey: .login)
+        displayname = try c.decode(String.self, forKey: .displayname)
+        wallet = try c.decode(Int.self, forKey: .wallet)
+        correction_point = try c.decode(Int.self, forKey: .correction_point)
+        image = try c.decode(ImageRaw.self, forKey: .image)
+        pool_month = try? c.decode(String.self, forKey: .pool_month)
+        pool_year = try? c.decode(String.self, forKey: .pool_year)
+        campus = try? c.decode([CampusRaw].self, forKey: .campus)
+        kind = try? c.decode(String.self, forKey: .kind)
+        achievements = (try? c.decode([AchievementRaw].self, forKey: .achievements)) ?? []
+        email = try? c.decode(String.self, forKey: .email)
+        phone = try? c.decode(String.self, forKey: .phone)
+        titles = try? c.decode([TitleRaw].self, forKey: .titles)
+        titles_users = try? c.decode([TitleUserRaw].self, forKey: .titles_users)
+        cursus_users = (try? c.decode([CursusUserRaw].self, forKey: .cursus_users)) ?? []
+        location = try? c.decode(String.self, forKey: .location)
+        let aNew = try? c.decode(Bool.self, forKey: .activeQuestion)
+        let aOld = try? c.decode(Bool.self, forKey: .isActiveLegacy)
+        isActive = aNew ?? aOld
     }
 }
 
@@ -289,57 +380,6 @@ enum DateParser {
     }
     static func isoString(_ date: Date) -> String {
         fUTCFrac.string(from: date)
-    }
-}
-
-extension UserProfile {
-    init(raw: UserInfoRaw,
-         coalitions: [UserProfile.Coalition] = [],
-         finishedProjects: [UserProfile.Project] = [],
-         activeProjects: [UserProfile.ActiveProject] = [],
-         currentHost: String? = nil) {
-        self.id = raw.login
-        self.login = raw.login
-        self.displayName = raw.displayname
-        self.userNameWithTitle = raw.user_name_with_title
-        self.wallet = raw.wallet
-        self.correctionPoint = raw.correction_point
-        self.imageURL = URL(string: raw.image.link)
-        self.poolMonth = raw.pool_month
-        self.poolYear = raw.pool_year
-        self.campusId = raw.campus_id
-        self.campusName = raw.campus_name
-        self.campusCity = raw.campus_city
-        self.campusCountry = raw.campus_country
-        self.campusTimeZone = raw.campus_time_zone
-        self.campusLanguage = raw.campus_language
-        self.userKind = raw.kind
-        self.isActive = raw.is_active
-        self.email = raw.email
-        self.phone = raw.phone
-        self.currentHost = currentHost
-        self.cursus = raw.cursus_users.map {
-            UserProfile.Cursus(id: $0.cursus_id ?? 0, grade: $0.grade, level: $0.level, beginAt: DateParser.iso($0.begin_at), endAt: DateParser.iso($0.end_at), name: $0.cursus.name)
-        }
-        self.coalitions = coalitions
-        self.achievements = raw.achievements.map {
-            let urlString = $0.image.hasPrefix("/") ? "https://api.intra.42.fr\($0.image)" : $0.image
-            return UserProfile.Achievement(id: $0.id, name: $0.name, description: $0.description, image: URL(string: urlString), count: $0.nbr_of_success)
-        }
-        self.finishedProjects = finishedProjects
-        self.activeProjects = activeProjects
-    }
-
-    func with(coalitions: [Coalition]) -> UserProfile {
-        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
-    }
-
-    func with(projectsFinished: [Project], projectsActive: [ActiveProject]) -> UserProfile {
-        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: projectsFinished, activeProjects: projectsActive)
-    }
-
-    func with(currentHost: String?) -> UserProfile {
-        UserProfile(id: id, login: login, displayName: displayName, userNameWithTitle: userNameWithTitle, wallet: wallet, correctionPoint: correctionPoint, imageURL: imageURL, poolMonth: poolMonth, poolYear: poolYear, campusId: campusId, campusName: campusName, campusCity: campusCity, campusCountry: campusCountry, campusTimeZone: campusTimeZone, campusLanguage: campusLanguage, userKind: userKind, isActive: isActive, email: email, phone: phone, currentHost: currentHost, cursus: cursus, coalitions: coalitions, achievements: achievements, finishedProjects: finishedProjects, activeProjects: activeProjects)
     }
 }
 

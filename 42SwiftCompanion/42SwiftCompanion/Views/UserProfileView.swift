@@ -28,6 +28,23 @@ struct UserProfileView: View {
                                     StatCard(style: .compact, title: "Points d’évaluations", value: "\(p.correctionPoint)", systemImage: "scalemass.fill")
                                     Spacer()
                                 }
+								HStack(spacing: 12) {
+									let hostParts = p.displayableHostOrNA.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+									let hostTitle = hostParts.first ?? "Cluster"
+									let hostValue = hostParts.count > 1 ? hostParts[1] : hostParts.first ?? ""
+									let showLink = hostValue != "Non disponible"
+									InfoPillRow(
+										leading: .system("desktopcomputer"),
+										title: String(hostTitle),
+										subtitle: String(hostValue),
+										badges: [],
+										onTap: showLink ? {
+											if let url = URL(string: "https://meta.intra.42.fr/clusters") {
+												UIApplication.shared.open(url)
+											}
+										} : nil
+									)
+								}
                             }
                         } else {
                             IdentitySkeleton()
@@ -147,9 +164,21 @@ private struct IdentityCard: View {
                     Text(profile.userNameWithTitle == profile.login ? profile.login : (profile.userNameWithTitle ?? profile.login))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Text(profile.displayableHostOrNA)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+					// if profile.displayableHostOrNA != "Non disponible" {
+					// 	if let url = URL(string: "https://meta.intra.42.fr/clusters") {
+					// 		Link(profile.displayableHostOrNA, destination: url)
+					// 			.font(.footnote)
+					// 			.foregroundStyle(.secondary)
+					// 	} else {
+					// 		Text(profile.displayableHostOrNA)
+					// 			.font(.footnote)
+					// 			.foregroundStyle(.secondary)
+					// 	}
+					// } else {
+					// 	Text(profile.displayableHostOrNA)
+					// 		.font(.footnote)
+					// 		.foregroundStyle(.secondary)
+					// }
                     if let active = profile.isActive {
                         Text(active ? "Actif" : "Inactif")
                             .font(.footnote.weight(.semibold))
