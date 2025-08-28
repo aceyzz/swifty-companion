@@ -17,3 +17,23 @@ struct BlockingProgressOverlay: View {
         .transition(.opacity)
     }
 }
+
+struct RetryRow: View {
+    let title: String
+    let action: () -> Void
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(title).font(.subheadline)
+            Spacer()
+            Button("Réessayer", action: action)
+        }
+    }
+}
+
+struct EmptyRow: View {
+    let text: String
+    var body: some View {
+        Text(text).font(.subheadline).foregroundStyle(.secondary)
+    }
+}

@@ -150,6 +150,11 @@ private struct IdentityCard: View {
                     Text(profile.displayableHostOrNA)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    if let active = profile.isActive {
+                        Text(active ? "Actif" : "Inactif")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(active ? .green : .red)
+                    }
                 }
                 Spacer()
             }
@@ -556,40 +561,6 @@ struct MyProfileView: View {
     }
 }
 
-struct SectionCard<Content: View>: View {
-    @EnvironmentObject var theme: Theme
-    let title: String
-    let content: Content
-    init(title: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.content = content()
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if !title.isEmpty {
-                Text(title)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(theme.accentColor)
-                    .padding(.bottom, 4)
-            }
-            content
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(theme.accentColor.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(theme.accentColor.opacity(0.18), lineWidth: 1.5)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
-        .padding(.horizontal, 8)
-    }
-}
-
-
 struct ProfileTextList: View {
     let texts: [String]
     var font: Font = .body
@@ -823,26 +794,6 @@ private struct ShimmerBar: View {
                 animate = true
             }
         }
-    }
-}
-
-struct RetryRow: View {
-    let title: String
-    let action: () -> Void
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-            Text(title).font(.subheadline)
-            Spacer()
-            Button("Réessayer", action: action)
-        }
-    }
-}
-
-struct EmptyRow: View {
-    let text: String
-    var body: some View {
-        Text(text).font(.subheadline).foregroundStyle(.secondary)
     }
 }
 
