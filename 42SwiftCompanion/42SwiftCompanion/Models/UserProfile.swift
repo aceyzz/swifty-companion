@@ -361,34 +361,19 @@ struct UserInfoRaw: Decodable {
     }
 }
 
-enum DateParser {
-    private static let fUTCFrac: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.timeZone = TimeZone(secondsFromGMT: 0)
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-    private static let fUTC: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.timeZone = TimeZone(secondsFromGMT: 0)
-        f.formatOptions = [.withInternetDateTime]
-        return f
-    }()
-    static func iso(_ str: String?) -> Date? {
-        guard let s = str, !s.isEmpty else { return nil }
-        return fUTCFrac.date(from: s) ?? fUTC.date(from: s)
-    }
-    static func isoString(_ date: Date) -> String {
-        fUTCFrac.string(from: date)
-    }
-}
-
 struct UserSummary: Identifiable, Codable, Equatable {
     let login: String
     let displayName: String?
     let imageURL: URL?
     let primaryCampusId: Int?
     var id: String { login }
+}
+
+extension UserSummary {
+    static func fromRaw(_ r: UserSummaryRaw) -> UserSummary {
+        let urlStr = r.image?.link ?? r.image_url
+        return .init(login: r.login, displayName: r.displayname, imageURL: urlStr.flatMap(URL.init(string:)), primaryCampusId: r.primary_campus_id)
+    }
 }
 
 struct UserSummaryRaw: Decodable {
@@ -401,9 +386,54 @@ struct UserSummaryRaw: Decodable {
     let primary_campus_id: Int?
 }
 
-extension UserSummary {
-    static func fromRaw(_ r: UserSummaryRaw) -> UserSummary {
-        let urlStr = r.image?.link ?? r.image_url
-        return .init(login: r.login, displayName: r.displayname, imageURL: urlStr.flatMap(URL.init(string:)), primaryCampusId: r.primary_campus_id)
+struct UpcomingScaleTeamRaw: Decodable, Identifiable {
+    struct ScaleRaw: Decodable {
+        let introduction_md: String?
+        let guidelines_md: String?
+        let disclaimer_md: String?
+        let duration: Int?
     }
+
+    struct TeamRaw: Decodable { let project_id: Int? }
+    let id: Int
+    let begin_at: String?
+    let correcteds: JSONValue?
+    let corrector: JSONValue?
+    let scale: ScaleRaw?
+    let team: TeamRaw?
+}
+
+struct DisplaySlot: Identifiable, Equatable {
+    let id: String
+    let slotIds: [Int]
+    let begin: Date?
+    let end: Date?
+    let isReserved: Bool
+    let scaleTeamId: Int?
+    var scaleTeam: JSONValue?
+}
+
+struct EvaluationSlot: Codable, Identifiable, Equatable {
+    let id: Int
+    let begin_at: String?
+    let end_at: String?
+    let scale_team: JSONValue?
+    let user: JSONValue?
+}
+
+struct Me: Decodable { let id: Int }
+
+struct UpcomingEvaluation: Identifiable, Equatable {
+    enum Role { case corrector, corrected }
+    let id: Int
+    let role: Role
+    let beginAt: Date?
+    let endAt: Date?
+    let projectName: String?
+    let correctedLogins: [String]
+    let correctorLogin: String?
+    let introLine: String?
+    let guidelinesLine: String?
+    let disclaimerLine: String?
+    let durationMinutes: Int
 }

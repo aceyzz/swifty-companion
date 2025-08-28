@@ -96,3 +96,36 @@ struct CapsuleBadge: View {
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke((tint ?? theme.accentColor).opacity(0.2), lineWidth: 1))
     }
 }
+
+struct ActionBar: View {
+    let isLoading: Bool
+    let lastUpdated: Date?
+    let refresh: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: refresh) {
+                HStack(spacing: 8) {
+                    if isLoading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    Text(isLoading ? "Rafraîchissement…" : "Rafraîchir")
+                        .font(.callout.weight(.semibold))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.systemGray6)))
+            }
+            .buttonStyle(.plain)
+
+            if let updated = lastUpdated {
+                Spacer()
+                Text(updated.formatted(date: .abbreviated, time: .shortened))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
