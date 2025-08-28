@@ -638,12 +638,22 @@ final class SlotsViewModel: ObservableObject {
     var weekdayTitle: String { Self.weekdayFormatter.string(from: selectedDay).capitalized }
     var dayLongTitle: String { Self.dayFormatter.string(from: selectedDay).capitalized }
 
+    private static func hasScaleTeam(_ value: JSONValue?) -> Bool {
+        guard let v = value else { return false }
+        switch v {
+        case .null: return false
+        case .string(let s): return !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        default: return true
+        }
+    }
+
     private static func mergeContiguous(_ slots: [EvaluationSlot], details: [Int: EvaluationSlot]) -> [DisplaySlot] {
         let items = slots.compactMap { s -> (EvaluationSlot, Date, Date, Bool, Int?)? in
             guard let b = DateParser.iso(s.begin_at), let e = DateParser.iso(s.end_at) else { return nil }
             let resolved = details[s.id]
-            let stid = Self.scaleTeamId(from: resolved?.scale_team)
-            let reserved = stid != nil
+            let scaleValue = resolved?.scale_team ?? s.scale_team
+            let reserved = hasScaleTeam(scaleValue)
+            let stid = scaleTeamId(from: scaleValue)
             return (s, b, e, reserved, stid)
         }
         .sorted { l, r in
@@ -665,12 +675,21 @@ final class SlotsViewModel: ObservableObject {
                 currentEnd = it.2
                 currentReserved = it.3
                 currentScaleTeamId = it.4
-            } else if it.3 == currentReserved, let ce = currentEnd, abs(it.1.timeIntervalSince(ce)) < 0.5, (!it.3 || it.4 == currentScaleTeamId) {
+            } else if it.3 == currentReserved,
+                      let ce = currentEnd,
+                      abs(it.1.timeIntervalSince(ce)) < 0.5,
+                      (!it.3 || it.4 == currentScaleTeamId) {
                 currentIds.append(it.0.id)
                 currentEnd = it.2
             } else {
                 let idStr = currentIds.map(String.init).joined(separator: "-") + (currentReserved == true ? ":r" : ":f")
-                out.append(DisplaySlot(id: idStr, slotIds: currentIds, begin: currentBegin, end: currentEnd, isReserved: currentReserved ?? false, scaleTeamId: currentScaleTeamId, scaleTeam: nil))
+                out.append(DisplaySlot(id: idStr,
+                                       slotIds: currentIds,
+                                       begin: currentBegin,
+                                       end: currentEnd,
+                                       isReserved: currentReserved ?? false,
+                                       scaleTeamId: currentScaleTeamId,
+                                       scaleTeam: nil))
                 currentIds = [it.0.id]
                 currentBegin = it.1
                 currentEnd = it.2
@@ -678,9 +697,16 @@ final class SlotsViewModel: ObservableObject {
                 currentScaleTeamId = it.4
             }
         }
+
         if !currentIds.isEmpty {
             let idStr = currentIds.map(String.init).joined(separator: "-") + (currentReserved == true ? ":r" : ":f")
-            out.append(DisplaySlot(id: idStr, slotIds: currentIds, begin: currentBegin, end: currentEnd, isReserved: currentReserved ?? false, scaleTeamId: currentScaleTeamId, scaleTeam: nil))
+            out.append(DisplaySlot(id: idStr,
+                                   slotIds: currentIds,
+                                   begin: currentBegin,
+                                   end: currentEnd,
+                                   isReserved: currentReserved ?? false,
+                                   scaleTeamId: currentScaleTeamId,
+                                   scaleTeam: nil))
         }
         return out
     }
