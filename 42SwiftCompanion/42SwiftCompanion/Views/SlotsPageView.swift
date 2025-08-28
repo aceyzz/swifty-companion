@@ -494,9 +494,7 @@ final class SlotsViewModel: ObservableObject {
             guard let self else { return }
             do {
                 let raw = try await repo.myEvaluationSlots(forDay: day)
-                if DEBUG {
-					await debugPrintSlots(forDay: day)
-                }
+                if DEBUG { await debugPrintSlots(forDay: day) }
                 if Task.isCancelled { return }
 
                 var cal = Calendar(identifier: .gregorian)
@@ -507,10 +505,13 @@ final class SlotsViewModel: ObservableObject {
                     return b < nextDay
                 }
 
-                var groups = Self.mergeContiguous(filtered)
-                let ids = Set(groups.compactMap(\.scaleTeamId))
-                if !ids.isEmpty {
-                    let details = await repo.fetchScaleTeamsDetails(ids: Array(ids))
+                let ids = filtered.map(\.id)
+                let detailsMap = await repo.fetchSlotsDetails(ids: ids)
+
+                var groups = Self.mergeContiguous(filtered, details: detailsMap)
+                let scaleTeamIds = Set(groups.compactMap(\.scaleTeamId))
+                if !scaleTeamIds.isEmpty {
+                    let details = await repo.fetchScaleTeamsDetails(ids: Array(scaleTeamIds))
                     for i in groups.indices {
                         if let id = groups[i].scaleTeamId, let det = details[id] {
                             groups[i].scaleTeam = det
@@ -606,9 +607,7 @@ final class SlotsViewModel: ObservableObject {
             }
             do {
                 let created = try await repo.createEvaluationSlot(begin: begin, end: end)
-                if DEBUG {
-                    await debugPrintCreatedSlot(created)
-                }
+                if DEBUG { await debugPrintCreatedSlot(created) }
                 await MainActor.run { self.showCreateSheet = false }
                 try? await Task.sleep(nanoseconds: 150_000_000)
                 await refresh(force: true)
@@ -639,10 +638,11 @@ final class SlotsViewModel: ObservableObject {
     var weekdayTitle: String { Self.weekdayFormatter.string(from: selectedDay).capitalized }
     var dayLongTitle: String { Self.dayFormatter.string(from: selectedDay).capitalized }
 
-    private static func mergeContiguous(_ slots: [EvaluationSlot]) -> [DisplaySlot] {
+    private static func mergeContiguous(_ slots: [EvaluationSlot], details: [Int: EvaluationSlot]) -> [DisplaySlot] {
         let items = slots.compactMap { s -> (EvaluationSlot, Date, Date, Bool, Int?)? in
             guard let b = DateParser.iso(s.begin_at), let e = DateParser.iso(s.end_at) else { return nil }
-            let stid = Self.scaleTeamId(from: s.scale_team)
+            let resolved = details[s.id]
+            let stid = Self.scaleTeamId(from: resolved?.scale_team)
             let reserved = stid != nil
             return (s, b, e, reserved, stid)
         }
@@ -869,9 +869,9 @@ final class SlotsRepository {
         ]
         let body = try JSONSerialization.data(withJSONObject: payload, options: [])
         let ep = Endpoint(path: "/v2/slots",
-                        method: .post,
-                        headers: ["Content-Type": "application/json"],
-                        body: body)
+                          method: .post,
+                          headers: ["Content-Type": "application/json"],
+                          body: body)
         return try await api.request(ep, as: [EvaluationSlot].self)
     }
 
@@ -885,11 +885,7 @@ final class SlotsRepository {
             for id in ids {
                 group.addTask {
                     let val = try? await self.scaleTeam(id: id)
-                    if let val {
-                        if DEBUG {
-                            await debugPrintScaleTeam(id: id, payload: val)
-                        }
-                    }
+                    if let val, DEBUG { await debugPrintScaleTeam(id: id, payload: val) }
                     return (id, val)
                 }
             }
@@ -920,6 +916,29 @@ final class SlotsRepository {
         } catch {
             throw error
         }
+    }
+
+    func fetchSlotsDetails(ids: [Int]) async -> [Int: EvaluationSlot] {
+        if ids.isEmpty { return [:] }
+        var map: [Int: EvaluationSlot] = [:]
+        let unique = Array(Set(ids)).sorted()
+        let chunkSize = 50
+        var idx = 0
+        while idx < unique.count {
+            let end = min(unique.count, idx + chunkSize)
+            let chunk = Array(unique[idx..<end])
+            let list = chunk.map(String.init).joined(separator: ",")
+            let ep = Endpoint(path: "/v2/slots",
+                              queryItems: [
+                                URLQueryItem(name: "filter[id]", value: list),
+                                URLQueryItem(name: "page[size]", value: "100")
+                              ])
+            if let page: [EvaluationSlot] = try? await api.request(ep, as: [EvaluationSlot].self) {
+                for s in page { map[s.id] = s }
+            }
+            idx = end
+        }
+        return map
     }
 }
 

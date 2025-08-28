@@ -6,6 +6,7 @@ struct _2SwiftCompanionApp: App {
     @StateObject private var profileStore = ProfileStore.shared
     @StateObject private var theme = Theme.shared
     @StateObject private var network = NetworkMonitor.shared
+	@StateObject private var mapRouter = MapRouter.shared
 
     var body: some Scene {
         WindowGroup {
@@ -49,6 +50,7 @@ struct _2SwiftCompanionApp: App {
                     BlockingProgressOverlay(title: "Connexion…")
                 }
             }
+			.sheet(item: $mapRouter.sheet) { MapSheet(model: $0) }
             .disabled(authService.isPostWebAuthLoading)
             .animation(.snappy, value: authService.phase)
             .animation(.snappy, value: authService.isPostWebAuthLoading)

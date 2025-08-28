@@ -2,89 +2,108 @@ import SwiftUI
 import OSLog
 
 struct SearchView: View {
-	@EnvironmentObject var profileStore: ProfileStore
-	@StateObject private var vm = UserSearchViewModel()
-	@FocusState private var searchFocused: Bool
+    @EnvironmentObject var profileStore: ProfileStore
+    @StateObject private var vm = UserSearchViewModel()
+    @FocusState private var searchFocused: Bool
 
-	var body: some View {
-		ScrollView {
-			VStack(alignment: .leading, spacing: 24) {
-				Text("Recherche")
-					.font(.largeTitle.bold())
-					.frame(maxWidth: .infinity, alignment: .leading)
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text("Recherche")
+                        .font(.largeTitle.bold())
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-				ClassicSearchField(
-					text: $vm.searchText,
-					isLoading: vm.isSearching,
-					onSubmit: {
-						searchFocused = false
-						vm.submit()
-					},
-					focus: $searchFocused
-				)
+                    ClassicSearchField(
+                        text: $vm.searchText,
+                        isLoading: vm.isSearching,
+                        onSubmit: {
+                            searchFocused = false
+                            vm.submit()
+                        },
+                        focus: $searchFocused
+                    )
 
-				LazyVStack(spacing: 16) {
-					if vm.state != .idle {
-						SectionCard(title: "Résultats") {
-							switch vm.state {
-							case .idle:
-								EmptyView()
-							case .loading:
-								LoadingListPlaceholder(lines: 4)
-							case .failed(let message):
-								RetryRow(title: message) {
-									searchFocused = false
-									vm.submit(force: true)
-								}
-							case .loaded(let items):
-								if items.isEmpty {
-									ContentUnavailableView("Aucun résultat", systemImage: "person.fill.questionmark")
-										.frame(maxWidth: .infinity, alignment: .leading)
-								} else {
-									VStack(alignment: .leading, spacing: 10) {
-										ForEach(items) { u in
-											InfoPillRow(
-												leading: u.imageURL.map(InfoPillRow.Leading.url),
-												title: u.displayName?.isEmpty == false ? (u.displayName ?? u.login) : u.login,
-												subtitle: u.displayName?.isEmpty == false ? u.login : nil,
-												onTap: {
-													searchFocused = false
-													vm.select(user: u)
-												}
-											)
-										}
-									}
-								}
-							}
-						}
-					} else {
-						ContentUnavailableView("Recherche un étudiant", systemImage: "magnifyingglass")
-							.frame(maxWidth: .infinity, alignment: .leading)
-					}
+                    LazyVStack(spacing: 16) {
+                        if vm.state != .idle {
+                            SectionCard(title: "Résultats") {
+                                switch vm.state {
+                                case .idle:
+                                    EmptyView()
+                                case .loading:
+                                    LoadingListPlaceholder(lines: 4)
+                                case .failed(let message):
+                                    RetryRow(title: message) {
+                                        searchFocused = false
+                                        vm.submit(force: true)
+                                    }
+                                case .loaded(let items):
+                                    if items.isEmpty {
+                                        ContentUnavailableView("Aucun résultat", systemImage: "person.fill.questionmark")
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            ForEach(items) { u in
+                                                NavigationLink {
+                                                    UserProfileDetailView(login: u.login)
+                                                } label: {
+                                                    InfoPillRow(
+                                                        leading: u.imageURL.map(InfoPillRow.Leading.url),
+                                                        title: u.displayName?.isEmpty == false ? (u.displayName ?? u.login) : u.login,
+                                                        subtitle: u.displayName?.isEmpty == false ? u.login : nil
+                                                    )
+                                                }
+                                                .buttonStyle(.plain)
+                                                .simultaneousGesture(TapGesture().onEnded { searchFocused = false })
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            ContentUnavailableView("Recherche un étudiant", systemImage: "magnifyingglass")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
 
-					if let updated = vm.lastUpdated {
-						Text("Actualisé: \(updated.formatted(date: .abbreviated, time: .shortened))")
-							.font(.footnote)
-							.foregroundStyle(.secondary)
-							.frame(maxWidth: .infinity, alignment: .center)
-					}
-				}
-			}
-			.padding()
-		}
-		.scrollDismissesKeyboard(.immediately)
-		.background(KeyboardDismissArea { searchFocused = false })
-		.onAppear { vm.bootstrap(currentCampusId: profileStore.loader?.profile?.campusId) }
-		.onChange(of: profileStore.loader?.profile?.campusId) { _, newId in
-			vm.bootstrap(currentCampusId: newId)
-		}
-		.fullScreenCover(item: $vm.presentedLogin) { presented in
-			UserProfileScreen(login: presented.id)
-		}
-		.animation(.snappy, value: vm.stateKey)
-		.sensoryFeedback(.success, trigger: vm.feedbackSuccessTick)
-		.sensoryFeedback(.error, trigger: vm.feedbackErrorTick)
-	}
+                        if let updated = vm.lastUpdated {
+                            Text("Actualisé: \(updated.formatted(date: .abbreviated, time: .shortened))")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
+                }
+                .padding()
+            }
+            .scrollDismissesKeyboard(.immediately)
+            .background(KeyboardDismissArea { searchFocused = false })
+            .onAppear { vm.bootstrap(currentCampusId: profileStore.loader?.profile?.campusId) }
+            .onChange(of: profileStore.loader?.profile?.campusId) { _, newId in
+                vm.bootstrap(currentCampusId: newId)
+            }
+            .animation(.snappy, value: vm.stateKey)
+            .sensoryFeedback(.success, trigger: vm.feedbackSuccessTick)
+            .sensoryFeedback(.error, trigger: vm.feedbackErrorTick)
+        }
+    }
+}
+
+struct UserProfileDetailView: View {
+    let login: String
+    @StateObject private var loader: UserProfileLoader
+
+    init(login: String) {
+        self.login = login
+        _loader = StateObject(wrappedValue: UserProfileLoader(login: login, autoRefresh: true))
+    }
+
+    var body: some View {
+        UserProfileView(loader: loader)
+            .navigationTitle(login)
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear { loader.start() }
+            .onDisappear { loader.stop() }
+    }
 }
 
 struct ClassicSearchField: View {
@@ -162,7 +181,7 @@ final class UserSearchViewModel: ObservableObject {
         }
     }
 
-    struct PresentedLogin: Identifiable, Equatable { let id: String }
+    struct PresentedLogin: Identifiable, Equatable, Hashable { let id: String }
 
     private let repo = SearchRepository.shared
     private var campusId: Int?

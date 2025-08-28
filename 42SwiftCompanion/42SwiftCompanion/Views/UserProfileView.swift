@@ -157,13 +157,30 @@ private struct IdentityCard: View {
                 VStack(spacing: 10) {
                     ForEach(profile.displayableContact, id: \.self) { line in
                         LabeledContent {
-                            if line.contains("@") {
-                                let encoded = line.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? line
-                                if let url = URL(string: "mailto:\(encoded)") {
+                            if isEmail(line) {
+                                if let url = URL(string: "mailto:\(line.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? line)") {
                                     Link(line, destination: url).font(.subheadline)
                                 } else {
                                     Text(line).font(.subheadline)
                                 }
+                            } else if isPhone(line) {
+                                let digits = line.filter { $0.isNumber }
+                                if let url = URL(string: "tel://\(digits)") {
+                                    Link(line, destination: url).font(.subheadline)
+                                } else {
+                                    Text(line).font(.subheadline)
+                                }
+                            } else if isCampusLine(line) || isDetectedAddress(line) {
+                                Button {
+                                    if let q = campusAddressQuery() {
+                                        MapModule.openAddress(q, name: profile.campusName ?? profile.displayName)
+                                    } else {
+                                        MapModule.openAddress(line, name: profile.displayName)
+                                    }
+                                } label: {
+                                    Text(line).font(.subheadline).underline()
+                                }
+                                .buttonStyle(.plain)
                             } else {
                                 Text(line).font(.subheadline)
                             }
@@ -187,11 +204,41 @@ private struct IdentityCard: View {
     }
 
     private func iconForContact(_ s: String) -> String {
-        if s.contains("@") { return "envelope" }
-        if s.contains("—") || s.contains("(") { return "building.2" }
-        let digits = s.filter { $0.isNumber }
-        if digits.count >= 6 { return "phone" }
+        if isEmail(s) { return "envelope" }
+        if isCampusLine(s) || isDetectedAddress(s) { return "mappin.and.ellipse" }
+        if isPhone(s) { return "phone" }
         return "person"
+    }
+
+    private func isEmail(_ s: String) -> Bool {
+        s.contains("@")
+    }
+
+    private func isPhone(_ s: String) -> Bool {
+        s.filter { $0.isNumber }.count >= 6
+    }
+
+    private func isCampusLine(_ s: String) -> Bool {
+        guard let name = profile.campusName, !name.isEmpty else { return false }
+        if s.localizedCaseInsensitiveContains(name) { return true }
+        if let city = profile.campusCity, s.localizedCaseInsensitiveContains(city) { return true }
+        if let country = profile.campusCountry, s.localizedCaseInsensitiveContains(country) { return true }
+        return false
+    }
+
+    private func campusAddressQuery() -> String? {
+        let parts = [profile.campusName, profile.campusCity, profile.campusCountry].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: ", ")
+    }
+
+    private func isDetectedAddress(_ s: String) -> Bool {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.address.rawValue) else { return false }
+        let range = NSRange(s.startIndex..<s.endIndex, in: s)
+        if let match = detector.firstMatch(in: s, options: [], range: range) {
+            return match.resultType == .address && match.range.length >= 6
+        }
+        return false
     }
 }
 
