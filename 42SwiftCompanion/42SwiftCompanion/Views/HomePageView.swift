@@ -229,6 +229,8 @@ private struct CampusInfoCard: View {
     @EnvironmentObject var theme: Theme
     let info: CampusDashboard.Info
     let activeUsersCount: Int
+    @State private var showActiveUsers = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
@@ -266,8 +268,14 @@ private struct CampusInfoCard: View {
                 leading: .system("wifi"),
                 title: "Actuellement connectés",
                 subtitle: "\(activeUsersCount)",
+                onTap: { showActiveUsers = true },
                 iconTint: nil
             )
+        }
+        .sheet(isPresented: $showActiveUsers) {
+            ActiveUsersSheet(campusId: info.id)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 }

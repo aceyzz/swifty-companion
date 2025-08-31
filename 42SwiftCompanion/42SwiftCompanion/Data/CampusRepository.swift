@@ -77,6 +77,19 @@ struct CachedCampus: Codable {
     let dashboard: CampusDashboard
 }
 
+struct CampusActiveLocationRaw: Decodable {
+    let id: Int?
+    let host: String?
+    let user: UserSummaryRaw?
+}
+
+struct CampusActiveUser: Identifiable, Codable, Equatable {
+    let id: Int
+    let login: String
+    let imageURL: URL?
+    let host: String?
+}
+
 actor CampusCache {
     private let url: URL
     private let encoder: JSONEncoder = {
@@ -156,6 +169,34 @@ final class CampusRepository {
             )
         }
         return all.count
+    }
+
+	func activeUsers(campusId: Int) async throws -> [CampusActiveUser] {
+        let raws: [CampusActiveLocationRaw] = try await api.pagedRequest { page in
+            Endpoint(
+                path: "/v2/campus/\(campusId)/locations",
+                queryItems: [
+                    URLQueryItem(name: "filter[active]", value: "true"),
+                    URLQueryItem(name: "page[size]", value: "100"),
+                    URLQueryItem(name: "page", value: "\(page)")
+                ]
+            )
+        }
+        var seen = Set<Int>()
+        var out: [CampusActiveUser] = []
+        out.reserveCapacity(raws.count)
+        for r in raws {
+            guard let u = r.user, let uid = u.id, !seen.contains(uid) else { continue }
+            seen.insert(uid)
+            let urlStr = u.image?.link ?? u.image_url
+            out.append(.init(
+                id: uid,
+                login: u.login,
+                imageURL: urlStr.flatMap(URL.init(string:)),
+                host: r.host
+            ))
+        }
+        return out.sorted { $0.login.localizedCaseInsensitiveCompare($1.login) == .orderedAscending }
     }
 
     func upcomingEvents(campusId: Int, limit: Int = 50) async throws -> [CampusEventRaw] {
