@@ -28,23 +28,23 @@ struct UserProfileView: View {
                                     StatCard(style: .compact, title: "Points d’évaluations", value: "\(p.correctionPoint)", systemImage: "scalemass.fill")
                                     Spacer()
                                 }
-								HStack(spacing: 12) {
-									let hostParts = p.displayableHostOrNA.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
-									let hostTitle = hostParts.first ?? "Cluster"
-									let hostValue = hostParts.count > 1 ? hostParts[1] : hostParts.first ?? ""
-									let showLink = hostValue != "Non disponible"
-									InfoPillRow(
-										leading: .system("desktopcomputer"),
-										title: String(hostTitle),
-										subtitle: String(hostValue),
-										badges: [],
-										onTap: showLink ? {
-											if let url = URL(string: "https://meta.intra.42.fr/clusters") {
-												UIApplication.shared.open(url)
-											}
-										} : nil
-									)
-								}
+                                HStack(spacing: 12) {
+                                    let hostParts = p.displayableHostOrNA.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                                    let hostTitle = hostParts.first ?? "Cluster"
+                                    let hostValue = hostParts.count > 1 ? hostParts[1] : hostParts.first ?? ""
+                                    let showLink = hostValue != "Non disponible"
+                                    InfoPillRow(
+                                        leading: .system("desktopcomputer"),
+                                        title: String(hostTitle),
+                                        subtitle: String(hostValue),
+                                        badges: [],
+                                        onTap: showLink ? {
+                                            if let url = URL(string: "https://meta.intra.42.fr/clusters") {
+                                                UIApplication.shared.open(url)
+                                            }
+                                        } : nil
+                                    )
+                                }
                             }
                         } else {
                             IdentitySkeleton()
@@ -79,7 +79,7 @@ struct UserProfileView: View {
                     LogTimeSection(loader: loader)
 
                     if let p = loader.profile {
-                        UnifiedItemsSection(
+                        UnifiedItemsCarouselSection(
                             title: "Achievements",
                             state: loader.basicState,
                             source: .flat(ItemsBuilder.achievements(from: p)),
@@ -532,113 +532,5 @@ enum ItemsSource {
             if let last = options.keys.sorted(by: >).first { return last }
             return options.keys.first ?? 0
         }
-    }
-}
-
-struct UnifiedItemsSection: View {
-    let title: String
-    let state: UserProfileLoader.SectionLoadState
-    let source: ItemsSource
-    let emptyText: String
-    let maxHeight: CGFloat?
-    let onRetry: (() -> Void)?
-
-    init(title: String,
-         state: UserProfileLoader.SectionLoadState,
-         source: ItemsSource,
-         emptyText: String,
-         maxHeight: CGFloat?,
-         onRetry: (() -> Void)? = nil) {
-        self.title = title
-        self.state = state
-        self.source = source
-        self.emptyText = emptyText
-        self.maxHeight = maxHeight
-        self.onRetry = onRetry
-    }
-
-    @State private var presented: ProfileItem?
-    @State private var selectedId: Int?
-
-    var body: some View {
-        SectionCard(title: title) {
-            switch state {
-            case .loading, .idle:
-                LoadingListPlaceholder(lines: 2)
-            case .failed:
-                if let onRetry {
-                    RetryRow(title: "Impossible de charger les projets", action: onRetry)
-                } else {
-                    EmptyRow(text: "Erreur")
-                }
-            case .loaded:
-                switch source {
-                case .flat(let items):
-                    itemsView(items: items)
-                case .grouped(let g):
-                    if g.options.isEmpty {
-                        ContentUnavailableView(emptyText, systemImage: "tray")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            let binding = Binding(
-                                get: { selectedId ?? g.defaultId },
-                                set: { selectedId = $0 }
-                            )
-                            let options = g.options.keys.sorted().compactMap { id -> KeyValue in
-                                KeyValue(id: id, label: g.options[id] ?? "Cursus \(id)")
-                            }
-                            ChipsBar(items: options, selection: binding) { $0.label }
-
-                            let effective = selectedId ?? g.defaultId
-                            let items = g.itemsById[effective] ?? []
-                            itemsView(items: items)
-                        }
-                        .task(id: Array(g.itemsById.keys).sorted()) {
-                            let keys = Array(g.itemsById.keys).sorted()
-                            if selectedId == nil { selectedId = g.defaultId }
-                            else if let sel = selectedId, !keys.contains(sel) { selectedId = g.defaultId }
-                        }
-                        .animation(.snappy, value: selectedId)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func itemsView(items: [ProfileItem]) -> some View {
-        if items.isEmpty {
-            ContentUnavailableView(emptyText, systemImage: "tray")
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
-                    ForEach(items) { it in
-                        InfoPillRow(
-                            leading: .system(it.icon),
-                            title: it.title,
-                            subtitle: it.subtitle,
-                            badges: it.badges,
-                            onTap: { presented = it }
-                        )
-                    }
-                }
-                .padding(.trailing, 2)
-            }
-            .scrollDisabled(items.count <= 6)
-            .frame(maxHeight: maxHeight)
-            .scrollIndicators(.visible)
-            .sheet(item: $presented) { it in
-                ItemDetailSheet(item: it)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
-        }
-    }
-
-    private struct KeyValue: Identifiable, Hashable {
-        let id: Int
-        let label: String
     }
 }
