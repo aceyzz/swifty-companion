@@ -4,6 +4,8 @@ import Security
 import SwiftUI
 import UIKit
 
+let PRIVATE_WEB_SESSION = true
+
 struct APIConfig {
     static var clientId: String { Bundle.main.object(forInfoDictionaryKey: "API_CLIENT_ID") as? String ?? "" }
     static var clientSecret: String { Bundle.main.object(forInfoDictionaryKey: "API_CLIENT_SECRET") as? String ?? "" }
@@ -163,7 +165,7 @@ final class AuthService: NSObject, ObservableObject {
                 await self.exchangeCodeForTokens(code: code)
             }
         }
-        session?.prefersEphemeralWebBrowserSession = false
+        session?.prefersEphemeralWebBrowserSession = PRIVATE_WEB_SESSION
         session?.presentationContextProvider = self
         session?.start()
     }
