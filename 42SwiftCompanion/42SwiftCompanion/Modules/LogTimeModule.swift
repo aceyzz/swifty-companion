@@ -92,9 +92,8 @@ struct WeeklyLogCard: View {
     }
 
     private func opacity(for hours: Double) -> Double {
-        guard hours > 0 else { return 0.15 }
-        let r = min(max(hours / 24.0, 0), 1)
-        return 0.25 + 0.75 * r
+        let clamped = max(0, min(hours, 24))
+        return clamped == 0 ? 0 : clamped / 24.0
     }
 
     private func formattedHours(_ h: Double) -> String {
@@ -106,9 +105,10 @@ struct WeeklyLogCard: View {
 
     private func cell(_ item: DailyLog, index: Int) -> some View {
         let op = opacity(for: item.hours)
+        let hasData = item.hours > 0
         return ZStack {
             RoundedRectangle(cornerRadius: 8)
-                .fill(theme.accentColor.opacity(op))
+                .fill(hasData ? theme.accentColor.opacity(op) : .clear)
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5)
             Text(dayNumber(item.date))

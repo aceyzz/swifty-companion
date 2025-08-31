@@ -140,7 +140,7 @@ struct UnifiedItemsCarouselSection: View {
                 LoadingListPlaceholder(lines: 1, compact: true)
             case .failed:
                 if let onRetry {
-                    RetryRow(title: "Impossible de charger les projets", action: onRetry)
+                    RetryRow(title: "Impossible de charger les achievements", action: onRetry)
                 } else {
                     EmptyRow(text: "Erreur")
                 }
@@ -217,7 +217,7 @@ struct UnifiedItemsCarouselSection: View {
                         .frame(width: 76, height: 76)
                     Image(systemName: item.icon)
                         .font(.system(size: 36, weight: .semibold))
-                        .foregroundStyle(theme.accentColor)
+                        .foregroundStyle(Color(red: 0.75, green: 0.75, blue: 0.75))
                 }
                 .frame(maxWidth: .infinity)
 
@@ -254,7 +254,7 @@ struct UnifiedItemsCarouselSection: View {
             .frame(width: 150, height: 150, alignment: .top)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(theme.accentColor.opacity(0.25), lineWidth: 2)
+                    .stroke(Color.secondary.opacity(0.25), lineWidth: 2)
             )
         }
     }
