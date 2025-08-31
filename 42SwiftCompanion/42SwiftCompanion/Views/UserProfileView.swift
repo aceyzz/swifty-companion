@@ -114,7 +114,7 @@ struct UserProfileView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
-                        LoadableSection(title: "En cours", state: loader.projectsState) {
+                        LoadableSection(title: "Projets en cours", state: loader.projectsState) {
                             LoadingListPlaceholder(lines: 2)
                         } failed: {
                             EmptyRow(text: "Erreur")
