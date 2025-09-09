@@ -55,7 +55,7 @@ final class UserProfileLoader: ObservableObject {
 
     private let repo = ProfileRepository.shared
     private let locRepo = LocationRepository.shared
-    private var cache: ProfileCache
+    private let cache = NetworkCache.shared
     private var loopTask: Task<Void, Never>?
     private let refreshInterval: TimeInterval = 300
     private var lastFetchAt: Date?
@@ -66,7 +66,6 @@ final class UserProfileLoader: ObservableObject {
         self.login = login
         self.autoRefresh = autoRefresh
         self.daysWindow = daysWindow
-        self.cache = ProfileCache(login: login)
     }
 
     func start() {
@@ -74,9 +73,7 @@ final class UserProfileLoader: ObservableObject {
         isPriming = true
         loopTask = Task { [weak self] in
             guard let self else { return }
-            if let cached = await cache.load() {
-                applyCached(cached)
-            }
+            await loadFromCache()
             await refreshNow()
             if self.autoRefresh {
                 while !Task.isCancelled {
@@ -102,7 +99,10 @@ final class UserProfileLoader: ObservableObject {
     }
 
     func clearCache() {
-        Task { await cache.clear() }
+        Task {
+            let cacheKey = await cache.cacheKey(for: "/profile/\(login)")
+            await cache.remove(forKey: cacheKey)
+        }
     }
 
     private func cancel() {
@@ -111,19 +111,28 @@ final class UserProfileLoader: ObservableObject {
         refreshToken &+= 1
     }
 
-    private func applyCached(_ cached: CachedProfile) {
-        profile = cached.profile
-        weeklyLog = cached.logs ?? []
-        lastFetchAt = cached.fetchedAt
+    private func loadFromCache() async {
+        let cacheKey = await cache.cacheKey(for: "/profile/\(login)")
+        
+        if let cached = await cache.get(CachedProfile.self, forKey: cacheKey) {
+            profile = cached.profile
+            weeklyLog = cached.logs ?? []
+            lastFetchAt = cached.fetchedAt
 
-        basicState = isPriming ? .loading : .loaded
-        coalitionsState = cached.profile.coalitions.isEmpty ? .loading : (isPriming ? .loading : .loaded)
-        projectsState = (cached.profile.finishedProjects.isEmpty && cached.profile.activeProjects.isEmpty) ? .loading : (isPriming ? .loading : .loaded)
-        hostState = cached.profile.currentHost == nil ? .loading : (isPriming ? .loading : .loaded)
-        logState = cached.logs == nil ? .loading : (isPriming ? .loading : .loaded)
+            basicState = .loaded
+            coalitionsState = cached.profile.coalitions.isEmpty ? .loading : .loaded
+            projectsState = (cached.profile.finishedProjects.isEmpty && cached.profile.activeProjects.isEmpty) ? .loading : .loaded
+            hostState = cached.profile.currentHost == nil ? .loading : .loaded
+            logState = cached.logs == nil ? .loading : .loaded
 
-        if !cached.profile.coalitions.isEmpty {
-            onCoalitionsColor?(bestCoalitionHex(from: cached.profile))
+            if !cached.profile.coalitions.isEmpty {
+                onCoalitionsColor?(bestCoalitionHex(from: cached.profile))
+            }
+            
+            let cacheAge = Date().timeIntervalSince(cached.fetchedAt)
+            if cacheAge > 300 {
+                isPriming = true
+            }
         }
     }
 
@@ -138,7 +147,8 @@ final class UserProfileLoader: ObservableObject {
     private func endSnapshotSave() async {
         if let p = profile {
             let snapshot = CachedProfile(profile: p, fetchedAt: Date(), logs: weeklyLog)
-            await cache.save(snapshot)
+            let cacheKey = await cache.cacheKey(for: "/profile/\(login)")
+            await cache.set(snapshot, forKey: cacheKey, ttl: 1800)
             lastFetchAt = snapshot.fetchedAt
         }
     }
@@ -159,42 +169,36 @@ final class UserProfileLoader: ObservableObject {
         guard !login.isEmpty else { return }
         let token = refreshToken &+ 1
         refreshToken = token
+        
+        let shouldSkipRefresh = !isPriming && 
+                              lastFetchAt != nil && 
+                              Date().timeIntervalSince(lastFetchAt!) < 120
+        
+        if shouldSkipRefresh { return }
+        
         beginRefreshing()
         defer { isPriming = false }
 
-        do {
-            let basic = try await repo.basicProfile(login: login)
-            if token != refreshToken { return }
-            profile = basic
-            basicState = .loaded
-        } catch {
-            if token != refreshToken { return }
-            markFailed(\.basicState)
-        }
-
-        async let coalitionsResult: ([CoalitionRaw], [CoalitionUserRaw])? = try? await repo.fetchCoalitions(login: login)
-        async let projectsResult: [ProjectRaw]? = try? await repo.fetchProjects(login: login)
+        async let profileDataResult = fetchProfileData()
         async let hostResult: String? = try? await locRepo.fetchCurrentHost(login: login)
         async let logsResult: [DailyLog]? = try? await locRepo.lastDaysStats(login: login, days: daysWindow)
 
-        let c = await coalitionsResult
+        let profileData = await profileDataResult
         if token != refreshToken { return }
-        if let c, let current = profile {
-            profile = repo.applyCoalitions(to: current, coalitions: c)
+        
+        if let (basic, coalitions, coalitionUsers, projects) = profileData {
+            profile = repo.applyCoalitions(to: basic, coalitions: (coalitions, coalitionUsers))
+            profile = repo.applyProjects(to: profile!, projects: projects)
+            basicState = .loaded
             coalitionsState = .loaded
+            projectsState = .loaded
+            
             if let p = profile {
                 onCoalitionsColor?(bestCoalitionHex(from: p))
             }
         } else {
+            markFailed(\.basicState)
             markFailed(\.coalitionsState)
-        }
-
-        let pjs = await projectsResult
-        if token != refreshToken { return }
-        if let pjs, let current = profile {
-            profile = repo.applyProjects(to: current, projects: pjs)
-            projectsState = .loaded
-        } else {
             markFailed(\.projectsState)
         }
 
@@ -217,6 +221,14 @@ final class UserProfileLoader: ObservableObject {
         }
 
         await endSnapshotSave()
+    }
+    
+    private func fetchProfileData() async -> (UserProfile, [CoalitionRaw], [CoalitionUserRaw], [ProjectRaw])? {
+        do {
+            return try await repo.fetchCompleteProfile(login: login)
+        } catch {
+            return nil
+        }
     }
 
     func retryBasic() { Task { await refreshBasicOnly() } }
@@ -244,7 +256,7 @@ final class UserProfileLoader: ObservableObject {
 
     private func refreshCoalitionsOnly() async {
         guard !login.isEmpty else { return }
-        if profile?.coalitions.isEmpty ?? true { coalitionsState = .loading }
+        coalitionsState = .loading
         do {
             let c = try await repo.fetchCoalitions(login: login)
             if let current = profile { profile = repo.applyCoalitions(to: current, coalitions: c) }
@@ -257,7 +269,7 @@ final class UserProfileLoader: ObservableObject {
 
     private func refreshProjectsOnly() async {
         guard !login.isEmpty else { return }
-        if (profile?.finishedProjects.isEmpty ?? true) && (profile?.activeProjects.isEmpty ?? true) { projectsState = .loading }
+        projectsState = .loading
         do {
             let pjs = try await repo.fetchProjects(login: login)
             if let current = profile { profile = repo.applyProjects(to: current, projects: pjs) }
@@ -270,7 +282,7 @@ final class UserProfileLoader: ObservableObject {
 
     private func refreshHostOnly() async {
         guard !login.isEmpty else { return }
-        if profile?.currentHost == nil { hostState = .loading }
+        hostState = .loading
         do {
             let h = try await locRepo.fetchCurrentHost(login: login)
             if let current = profile { profile = repo.applyCurrentHost(to: current, host: h) }
@@ -283,12 +295,13 @@ final class UserProfileLoader: ObservableObject {
 
     private func refreshLogOnly() async {
         guard !login.isEmpty else { return }
-        if weeklyLog.isEmpty { logState = .loading }
-        if let logs = try? await locRepo.lastDaysStats(login: login, days: daysWindow) {
+        logState = .loading
+        do {
+            let logs = try await locRepo.lastDaysStats(login: login, days: daysWindow)
             weeklyLog = logs
             logState = .loaded
             await endSnapshotSave()
-        } else {
+        } catch {
             markFailed(\.logState)
         }
     }

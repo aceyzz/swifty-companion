@@ -103,25 +103,46 @@ final class SlotsRepository {
 
     func fetchSlotsDetails(ids: [Int]) async -> [Int: EvaluationSlot] {
         if ids.isEmpty { return [:] }
-        var map: [Int: EvaluationSlot] = [:]
-        let unique = Array(Set(ids)).sorted()
-        let chunkSize = 50
-        var idx = 0
-        while idx < unique.count {
-            let end = min(unique.count, idx + chunkSize)
-            let chunk = Array(unique[idx..<end])
-            let list = chunk.map(String.init).joined(separator: ",")
-            let ep = Endpoint(path: "/v2/slots",
-                              queryItems: [
-                                URLQueryItem(name: "filter[id]", value: list),
-                                URLQueryItem(name: "page[size]", value: "100")
-                              ])
-            if let page: [EvaluationSlot] = try? await api.request(ep, as: [EvaluationSlot].self) {
-                for s in page { map[s.id] = s }
+        
+        let cache = NetworkCache.shared
+        var result: [Int: EvaluationSlot] = [:]
+        var missingIds: [Int] = []
+        
+        for id in Set(ids) {
+            let cacheKey = await cache.cacheKey(for: "/v2/slots/\(id)")
+            if let cached = await cache.get(EvaluationSlot.self, forKey: cacheKey) {
+                result[id] = cached
+            } else {
+                missingIds.append(id)
             }
-            idx = end
         }
-        return map
+        
+        if missingIds.isEmpty { return result }
+        
+        await withTaskGroup(of: [EvaluationSlot].self) { group in
+            let chunkSize = 50
+            for chunk in missingIds.chunked(into: chunkSize) {
+                group.addTask {
+                    let list = chunk.map(String.init).joined(separator: ",")
+                    let ep = Endpoint(path: "/v2/slots",
+                                      queryItems: [
+                                        URLQueryItem(name: "filter[id]", value: list),
+                                        URLQueryItem(name: "page[size]", value: "100")
+                                      ])
+                    return (try? await self.api.request(ep, as: [EvaluationSlot].self)) ?? []
+                }
+            }
+            
+            for await slots in group {
+                for slot in slots {
+                    result[slot.id] = slot
+                    let cacheKey = await cache.cacheKey(for: "/v2/slots/\(slot.id)")
+                    await cache.set(slot, forKey: cacheKey, ttl: 120)
+                }
+            }
+        }
+        
+        return result
     }
 }
 
@@ -146,19 +167,38 @@ extension SlotsRepository {
 
     func fetchProjectNames(ids: [Int]) async -> [Int: String] {
         if ids.isEmpty { return [:] }
-        var map: [Int: String] = [:]
+        
+        let cache = NetworkCache.shared
+        var result: [Int: String] = [:]
+        var missingIds: [Int] = []
+        
+        for id in Set(ids) {
+            let cacheKey = await cache.cacheKey(for: "/v2/projects/\(id)")
+            if let cached = await cache.get(String.self, forKey: cacheKey) {
+                result[id] = cached
+            } else {
+                missingIds.append(id)
+            }
+        }
+        
+        if missingIds.isEmpty { return result }
+        
         await withTaskGroup(of: (Int, String?).self) { group in
-            for id in Set(ids) {
+            for id in missingIds {
                 group.addTask {
                     let name = try? await self.projectName(id: id)
+                    if let name {
+                        let cacheKey = await cache.cacheKey(for: "/v2/projects/\(id)")
+                        await cache.set(name, forKey: cacheKey, ttl: 3600)
+                    }
                     return (id, name)
                 }
             }
             for await (id, name) in group {
-                if let name { map[id] = name }
+                if let name { result[id] = name }
             }
         }
-        return map
+        return result
     }
 
     private func projectName(id: Int) async throws -> String {
@@ -166,5 +206,13 @@ extension SlotsRepository {
         let ep = Endpoint(path: "/v2/projects/\(id)")
         let p: ProjectShort = try await api.request(ep, as: ProjectShort.self)
         return p.name
+    }
+}
+
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
     }
 }

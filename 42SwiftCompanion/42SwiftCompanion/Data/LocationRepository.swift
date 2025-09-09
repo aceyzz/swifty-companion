@@ -9,8 +9,14 @@ struct DailyLog: Identifiable, Codable, Equatable {
 final class LocationRepository {
     static let shared = LocationRepository()
     private let api = APIClient.shared
+    private let cache = NetworkCache.shared
 
     func fetchCurrentHost(login: String) async throws -> String? {
+        let cacheKey = await cache.cacheKey(for: "/v2/users/\(login)/locations/current")
+        
+        if let cached = await cache.get(String?.self, forKey: cacheKey) {
+            return cached
+        }
         let activeEndpoint = Endpoint(
             path: "/v2/users/\(login)/locations",
             queryItems: [
@@ -19,24 +25,35 @@ final class LocationRepository {
             ]
         )
         let activeItems: [LocationRaw] = try await api.request(activeEndpoint, as: [LocationRaw].self)
+        var result: String? = nil
+        
         if let first = activeItems.first, (first.end_at == nil || first.end_at?.isEmpty == true), let host = first.host, !host.isEmpty {
-            return host
+            result = host
+        } else {
+            let recentEndpoint = Endpoint(
+                path: "/v2/users/\(login)/locations",
+                queryItems: [
+                    URLQueryItem(name: "page[size]", value: "30"),
+                    URLQueryItem(name: "page", value: "1")
+                ]
+            )
+            let recent: [LocationRaw] = try await api.request(recentEndpoint, as: [LocationRaw].self)
+            if let open = recent.first(where: { $0.end_at == nil || $0.end_at?.isEmpty == true }), let host = open.host, !host.isEmpty {
+                result = host
+            }
         }
-        let recentEndpoint = Endpoint(
-            path: "/v2/users/\(login)/locations",
-            queryItems: [
-                URLQueryItem(name: "page[size]", value: "30"),
-                URLQueryItem(name: "page", value: "1")
-            ]
-        )
-        let recent: [LocationRaw] = try await api.request(recentEndpoint, as: [LocationRaw].self)
-        if let open = recent.first(where: { $0.end_at == nil || $0.end_at?.isEmpty == true }), let host = open.host, !host.isEmpty {
-            return host
-        }
-        return nil
+        
+        await cache.set(result, forKey: cacheKey, ttl: 60)
+        return result
     }
 
     func lastDaysStats(login: String, days: Int) async throws -> [DailyLog] {
+        let cacheKey = await cache.cacheKey(for: "/v2/users/\(login)/stats", params: ["days": "\(days)"])
+        
+        if let cached = await cache.get([DailyLog].self, forKey: cacheKey) {
+            return cached
+        }
+        
         let tz = TimeZone.current
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = tz
@@ -48,19 +65,22 @@ final class LocationRepository {
             return zeros(from: todayStart, days: days)
         }
 
+        var result: [DailyLog] = []
+        
         if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .isoDateTime), hasAnyValue(stats) {
-            return mapStats(stats, begin: beginDate, days: days, df: df, cal: cal)
+            result = mapStats(stats, begin: beginDate, days: days, df: df, cal: cal)
+        } else if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .dateOnly), hasAnyValue(stats) {
+            result = mapStats(stats, begin: beginDate, days: days, df: df, cal: cal)
+        } else {
+            let locsBegin = try? await ranged(login: login, key: "begin_at", from: beginDate, to: endExclusive)
+            let locsEnd = try? await ranged(login: login, key: "end_at", from: beginDate, to: endExclusive)
+            let active = try? await activeOnly(login: login)
+            let merged = deduplicated((locsBegin ?? []) + (locsEnd ?? []) + (active ?? []))
+            result = aggregate(locs: merged, from: beginDate, to: endExclusive, cal: cal)
         }
-
-        if let stats = try? await fetchStats(login: login, begin: beginDate, end: endExclusive, tz: tz, format: .dateOnly), hasAnyValue(stats) {
-            return mapStats(stats, begin: beginDate, days: days, df: df, cal: cal)
-        }
-
-        let locsBegin = try? await ranged(login: login, key: "begin_at", from: beginDate, to: endExclusive)
-        let locsEnd = try? await ranged(login: login, key: "end_at", from: beginDate, to: endExclusive)
-        let active = try? await activeOnly(login: login)
-        let merged = deduplicated((locsBegin ?? []) + (locsEnd ?? []) + (active ?? []))
-        return aggregate(locs: merged, from: beginDate, to: endExclusive, cal: cal)
+        
+        await cache.set(result, forKey: cacheKey, ttl: 180)
+        return result
     }
 
     private enum RangeFormat { case isoDateTime, dateOnly }

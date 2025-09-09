@@ -225,11 +225,11 @@ extension UserProfile {
     }
 }
 
-struct ImageRaw: Decodable { let link: String }
+struct ImageRaw: Codable { let link: String }
 
-struct CampusLanguageRaw: Decodable { let name: String?; let identifier: String? }
+struct CampusLanguageRaw: Codable { let name: String?; let identifier: String? }
 
-struct CampusRaw: Decodable {
+struct CampusRaw: Codable {
     let id: Int?
     let name: String
     let time_zone: String?
@@ -239,7 +239,7 @@ struct CampusRaw: Decodable {
     let language: CampusLanguageRaw?
 }
 
-struct AchievementRaw: Decodable {
+struct AchievementRaw: Codable {
     let id: Int
     let name: String
     let description: String
@@ -247,13 +247,13 @@ struct AchievementRaw: Decodable {
     let nbr_of_success: Int?
 }
 
-struct TitleRaw: Decodable { let id: Int; let name: String }
+struct TitleRaw: Codable { let id: Int; let name: String }
 
-struct TitleUserRaw: Decodable { let selected: Bool?; let title_id: Int? }
+struct TitleUserRaw: Codable { let selected: Bool?; let title_id: Int? }
 
-struct CursusRaw: Decodable { let name: String? }
+struct CursusRaw: Codable { let name: String? }
 
-struct CursusUserRaw: Decodable {
+struct CursusUserRaw: Codable {
     let cursus_id: Int?
     let grade: String?
     let level: Double?
@@ -262,11 +262,11 @@ struct CursusUserRaw: Decodable {
     let cursus: CursusRaw
 }
 
-struct CoalitionRaw: Decodable { let id: Int; let name: String; let slug: String; let color: String; let image_url: String; let score: Int? }
+struct CoalitionRaw: Codable { let id: Int; let name: String; let slug: String; let color: String; let image_url: String; let score: Int? }
 
-struct CoalitionUserRaw: Decodable { let coalition_id: Int; let score: Int?; let rank: Int? }
+struct CoalitionUserRaw: Codable { let coalition_id: Int; let score: Int?; let rank: Int? }
 
-struct TeamRaw: Decodable {
+struct TeamRaw: Codable {
     let id: Int?
     let status: String?
     let url: String?
@@ -278,9 +278,9 @@ struct TeamRaw: Decodable {
     let validated: Bool?
 }
 
-struct ProjectInfoRaw: Decodable { let name: String?; let slug: String? }
+struct ProjectInfoRaw: Codable { let name: String?; let slug: String? }
 
-struct ProjectRaw: Decodable {
+struct ProjectRaw: Codable {
     let final_mark: Int?
     let status: String?
     let closed_at: String?
@@ -294,9 +294,9 @@ struct ProjectRaw: Decodable {
     let teams: [TeamRaw]?
 }
 
-struct LocationRaw: Decodable { let id: Int?; let begin_at: String?; let end_at: String?; let host: String? }
+struct LocationRaw: Codable { let id: Int?; let begin_at: String?; let end_at: String?; let host: String? }
 
-struct UserInfoRaw: Decodable {
+struct UserInfoRaw: Codable {
     let login: String
     let displayname: String
     let wallet: Int
@@ -359,6 +359,27 @@ struct UserInfoRaw: Decodable {
         let aOld = try? c.decode(Bool.self, forKey: .isActiveLegacy)
         isActive = aNew ?? aOld
     }
+    
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(login, forKey: .login)
+        try c.encode(displayname, forKey: .displayname)
+        try c.encode(wallet, forKey: .wallet)
+        try c.encode(correction_point, forKey: .correction_point)
+        try c.encode(image, forKey: .image)
+        try c.encodeIfPresent(pool_month, forKey: .pool_month)
+        try c.encodeIfPresent(pool_year, forKey: .pool_year)
+        try c.encodeIfPresent(campus, forKey: .campus)
+        try c.encodeIfPresent(kind, forKey: .kind)
+        try c.encode(achievements, forKey: .achievements)
+        try c.encodeIfPresent(email, forKey: .email)
+        try c.encodeIfPresent(phone, forKey: .phone)
+        try c.encodeIfPresent(titles, forKey: .titles)
+        try c.encodeIfPresent(titles_users, forKey: .titles_users)
+        try c.encode(cursus_users, forKey: .cursus_users)
+        try c.encodeIfPresent(location, forKey: .location)
+        try c.encodeIfPresent(isActive, forKey: .activeQuestion)
+    }
 }
 
 struct UserSummary: Identifiable, Codable, Equatable {
@@ -376,8 +397,8 @@ extension UserSummary {
     }
 }
 
-struct UserSummaryRaw: Decodable {
-    struct ImageObj: Decodable { let link: String? }
+struct UserSummaryRaw: Codable {
+    struct ImageObj: Codable { let link: String? }
     let id: Int?
     let login: String
     let displayname: String?
@@ -386,15 +407,15 @@ struct UserSummaryRaw: Decodable {
     let primary_campus_id: Int?
 }
 
-struct UpcomingScaleTeamRaw: Decodable, Identifiable {
-    struct ScaleRaw: Decodable {
+struct UpcomingScaleTeamRaw: Codable, Identifiable {
+    struct ScaleRaw: Codable {
         let introduction_md: String?
         let guidelines_md: String?
         let disclaimer_md: String?
         let duration: Int?
     }
 
-    struct TeamRaw: Decodable { let project_id: Int? }
+    struct TeamRaw: Codable { let project_id: Int? }
     let id: Int
     let begin_at: String?
     let correcteds: JSONValue?
@@ -421,7 +442,7 @@ struct EvaluationSlot: Codable, Identifiable, Equatable {
     let user: JSONValue?
 }
 
-struct Me: Decodable { let id: Int }
+struct Me: Codable { let id: Int }
 
 struct UpcomingEvaluation: Identifiable, Equatable {
     enum Role { case corrector, corrected }

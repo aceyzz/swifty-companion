@@ -1,28 +1,72 @@
 import Foundation
 
+struct CachedCompleteProfile: Codable {
+    let profile: UserProfile
+    let coalitions: [CoalitionRaw]
+    let coalitionUsers: [CoalitionUserRaw]
+    let projects: [ProjectRaw]
+}
+
 final class ProfileRepository {
     static let shared = ProfileRepository()
     private let api: APIClient
+    private let cache = NetworkCache.shared
 
     init(client: APIClient = .shared) {
         self.api = client
     }
 
     func basicProfile(login: String) async throws -> UserProfile {
-        let user: UserInfoRaw = try await api.request(Endpoint(path: "/v2/users/\(login)"), as: UserInfoRaw.self)
-        return UserProfile(raw: user)
+        let cacheKey = await cache.cacheKey(for: "/v2/users/\(login)")
+        
+        if let cached = await cache.get(UserProfile.self, forKey: cacheKey) {
+            return cached
+        }
+        
+        let raw: UserInfoRaw = try await api.request(Endpoint(path: "/v2/users/\(login)"), as: UserInfoRaw.self)
+        let profile = UserProfile(raw: raw, coalitions: [], finishedProjects: [], activeProjects: [], currentHost: nil)
+        
+        await cache.set(profile, forKey: cacheKey, ttl: 900)
+        return profile
     }
 
     func fetchCoalitions(login: String) async throws -> ([CoalitionRaw], [CoalitionUserRaw]) {
-        async let coalitions: [CoalitionRaw] = api.request(Endpoint(path: "/v2/users/\(login)/coalitions"), as: [CoalitionRaw].self)
-        async let coalitionUsers: [CoalitionUserRaw] = api.request(Endpoint(path: "/v2/users/\(login)/coalitions_users"), as: [CoalitionUserRaw].self)
-        return try await (coalitions, coalitionUsers)
+        let coalitionsKey = await cache.cacheKey(for: "/v2/users/\(login)/coalitions")
+        let usersKey = await cache.cacheKey(for: "/v2/users/\(login)/coalitions_users")
+        
+        async let cachedCoalitions = cache.get([CoalitionRaw].self, forKey: coalitionsKey)
+        async let cachedUsers = cache.get([CoalitionUserRaw].self, forKey: usersKey)
+        
+        let (coalitions, users) = await (cachedCoalitions, cachedUsers)
+        
+        if let coalitions, let users {
+            return (coalitions, users)
+        }
+        
+        async let coalitionsResult: [CoalitionRaw] = api.request(Endpoint(path: "/v2/users/\(login)/coalitions"), as: [CoalitionRaw].self)
+        async let usersResult: [CoalitionUserRaw] = api.request(Endpoint(path: "/v2/users/\(login)/coalitions_users"), as: [CoalitionUserRaw].self)
+        
+        let (fetchedCoalitions, fetchedUsers) = try await (coalitionsResult, usersResult)
+        
+        await cache.set(fetchedCoalitions, forKey: coalitionsKey, ttl: 600)
+        await cache.set(fetchedUsers, forKey: usersKey, ttl: 600)
+        
+        return (fetchedCoalitions, fetchedUsers)
     }
 
     func fetchProjects(login: String) async throws -> [ProjectRaw] {
-        try await api.pagedRequest { page in
+        let cacheKey = await cache.cacheKey(for: "/v2/users/\(login)/projects_users")
+        
+        if let cached = await cache.get([ProjectRaw].self, forKey: cacheKey) {
+            return cached
+        }
+        
+        let projects: [ProjectRaw] = try await api.pagedRequest { page in
             Endpoint(path: "/v2/users/\(login)/projects_users", queryItems: [URLQueryItem(name: "page", value: "\(page)")])
         }
+        
+        await cache.set(projects, forKey: cacheKey, ttl: 300)
+        return projects
     }
 
     func assemble(user: UserInfoRaw, coalitions: ([CoalitionRaw], [CoalitionUserRaw]), projects: [ProjectRaw]) -> UserProfile {
@@ -43,6 +87,32 @@ final class ProfileRepository {
 
     func applyCurrentHost(to profile: UserProfile, host: String?) -> UserProfile {
         profile.with(currentHost: host)
+    }
+    
+    func fetchCompleteProfile(login: String) async throws -> (UserProfile, [CoalitionRaw], [CoalitionUserRaw], [ProjectRaw]) {
+        let completeKey = await cache.cacheKey(for: "/complete_profile/\(login)")
+        
+        if let cached = await cache.get(CachedCompleteProfile.self, forKey: completeKey) {
+            return (cached.profile, cached.coalitions, cached.coalitionUsers, cached.projects)
+        }
+        
+        async let profileResult = basicProfile(login: login)
+        async let coalitionsResult = fetchCoalitions(login: login)
+        async let projectsResult = fetchProjects(login: login)
+        
+        let profile = try await profileResult
+        let coalitions = try await coalitionsResult
+        let projects = try await projectsResult
+        
+        let cachedProfile = CachedCompleteProfile(
+            profile: profile,
+            coalitions: coalitions.0,
+            coalitionUsers: coalitions.1,
+            projects: projects
+        )
+        await cache.set(cachedProfile, forKey: completeKey, ttl: 600)
+        
+        return (profile, coalitions.0, coalitions.1, projects)
     }
 
     private func mergeCoalitions(_ coalitions: [CoalitionRaw], _ users: [CoalitionUserRaw]) -> [UserProfile.Coalition] {

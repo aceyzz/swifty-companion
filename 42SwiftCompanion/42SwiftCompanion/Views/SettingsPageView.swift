@@ -26,7 +26,7 @@ struct SettingsView: View {
                             if let exp = authService.tokenExpiration {
                                 InfoPillRow(
                                     leading: .system("lock.shield.fill"),
-                                    title: "Jeton valide",
+                                    title: "Token OAuth valide",
                                     subtitle: exp.formatted(date: .abbreviated, time: .shortened),
                                     badges: [],
                                     onTap: nil,
@@ -35,7 +35,7 @@ struct SettingsView: View {
                             } else {
                                 InfoPillRow(
                                     leading: .system("lock.slash.fill"),
-                                    title: "Jeton non disponible",
+                                    title: "Token OAuth non disponible",
                                     subtitle: "Connecte-toi pour générer un jeton",
                                     badges: [],
                                     onTap: nil,
