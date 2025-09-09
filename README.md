@@ -167,24 +167,62 @@ Gestion centralisée des pages et du header Link côté APIClient.
 
 ## Captures d'écran
 
+### Home
+
 <div align="center">
-	<table>
-		<tr>
-			<td><img src="./utils/screens/1.png" alt="Screen 1" width="220"></td>
-			<td><img src="./utils/screens/2.png" alt="Screen 2" width="220"></td>
-			<td><img src="./utils/screens/3.png" alt="Screen 3" width="220"></td>
-		</tr>
-		<tr>
-			<td><img src="./utils/screens/4.png" alt="Screen 4" width="220"></td>
-			<td><img src="./utils/screens/5.png" alt="Screen 5" width="220"></td>
-			<td><img src="./utils/screens/6.png" alt="Screen 6" width="220"></td>
-		</tr>
-		<tr>
-			<td><img src="./utils/screens/7.png" alt="Screen 7" width="220"></td>
-			<td><img src="./utils/screens/8.png" alt="Screen 8" width="220"></td>
-			<td><img src="./utils/screens/9.png" alt="Screen 9" width="220"></td>
-		</tr>
-	</table>
+	<img src="./utils/screens/home1.png" alt="Home 1" width="220">
+	<img src="./utils/screens/home2.png" alt="Home 2" width="220">
+	<img src="./utils/screens/home3.png" alt="Home 3" width="220">
+	<img src="./utils/screens/home4.png" alt="Home 4" width="220">
+</div>
+
+### Login
+
+<div align="center">
+	<img src="./utils/screens/login1.png" alt="Login 1" width="220">
+	<img src="./utils/screens/login2.png" alt="Login 2" width="220">
+</div>
+
+### Profile
+
+<div align="center">
+	<img src="./utils/screens/profile1.png" alt="Profile 1" width="220">
+	<img src="./utils/screens/profile2.png" alt="Profile 2" width="220">
+	<img src="./utils/screens/profile3.png" alt="Profile 3" width="220">
+</div>
+<div align="center">
+	<img src="./utils/screens/profile4.png" alt="Profile 4" width="220">
+	<img src="./utils/screens/profile5.png" alt="Profile 5" width="220">
+	<img src="./utils/screens/profile6.png" alt="Profile 6" width="220">
+</div>
+<div align="center">
+	<img src="./utils/screens/profile7.png" alt="Profile 7" width="220">
+</div>
+
+### Search
+
+<div align="center">
+	<img src="./utils/screens/search1.png" alt="Search 1" width="220">
+	<img src="./utils/screens/search2.png" alt="Search 2" width="220">
+</div>
+
+### Settings
+
+<div align="center">
+	<img src="./utils/screens/settings1.png" alt="Settings 1" width="220">
+	<img src="./utils/screens/settings2.png" alt="Settings 2" width="220">
+</div>
+
+### Slots
+
+<div align="center">
+	<img src="./utils/screens/slots1.png" alt="Slots 1" width="220">
+	<img src="./utils/screens/slots2.png" alt="Slots 2" width="220">
+	<img src="./utils/screens/slots3.png" alt="Slots 3" width="220">
+</div>
+<div align="center">
+	<img src="./utils/screens/slots4.png" alt="Slots 4" width="220">
+	<img src="./utils/screens/slots5.png" alt="Slots 5" width="220">
 </div>
 
 <br>
