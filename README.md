@@ -167,6 +167,15 @@ Gestion centralisée des pages et du header Link côté APIClient.
 
 ## Captures d'écran
 
+### Login
+
+<div align="center">
+	<img src="./utils/screens/login1.png" alt="Login 1" width="360">
+	<img src="./utils/screens/login2.png" alt="Login 2" width="360">
+</div>
+
+---
+
 ### Home
 
 <div align="center">
@@ -176,12 +185,7 @@ Gestion centralisée des pages et du header Link côté APIClient.
 	<img src="./utils/screens/home4.png" alt="Home 4" width="360">
 </div>
 
-### Login
-
-<div align="center">
-	<img src="./utils/screens/login1.png" alt="Login 1" width="360">
-	<img src="./utils/screens/login2.png" alt="Login 2" width="360">
-</div>
+---
 
 ### Profile
 
@@ -195,6 +199,8 @@ Gestion centralisée des pages et du header Link côté APIClient.
 	<img src="./utils/screens/profile7.png" alt="Profile 7" width="360">
 </div>
 
+---
+
 ### Search
 
 <div align="center">
@@ -202,12 +208,7 @@ Gestion centralisée des pages et du header Link côté APIClient.
 	<img src="./utils/screens/search2.png" alt="Search 2" width="360">
 </div>
 
-### Settings
-
-<div align="center">
-	<img src="./utils/screens/settings1.png" alt="Settings 1" width="360">
-	<img src="./utils/screens/settings2.png" alt="Settings 2" width="360">
-</div>
+---
 
 ### Slots
 
@@ -217,6 +218,15 @@ Gestion centralisée des pages et du header Link côté APIClient.
 	<img src="./utils/screens/slots3.png" alt="Slots 3" width="360">
 	<img src="./utils/screens/slots4.png" alt="Slots 4" width="360">
 	<img src="./utils/screens/slots5.png" alt="Slots 5" width="360">
+</div>
+
+---
+
+### Settings
+
+<div align="center">
+	<img src="./utils/screens/settings1.png" alt="Settings 1" width="360">
+	<img src="./utils/screens/settings2.png" alt="Settings 2" width="360">
 </div>
 
 <br>
