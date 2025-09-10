@@ -4,47 +4,92 @@
 
 # Swifty Companion — 42
 
-Application **iOS 17+** en SwiftUI connectée à l’API 42 pour afficher ton profil, rechercher des étudiants, visualiser l’activité du campus et suivre tes projets.  
-Design moderne, performances soignées, architecture modulaire prête pour l’évolutivité.
+Application **iOS 17+** en SwiftUI connectée à l’API 42. Affiche ton profil, tes projets, coalitions, log time, slots d’évaluation, campus et permet la recherche d’étudiants.  
+Design moderne, performances optimisées, architecture modulaire et évolutive. Sécurité, résilience réseau et UX avancée.
+
+> Mon implémentation dépasse complètement les pré-requis du sujet volontairement, car je souhaitais avoir le maximum de fonctionnalités de l'intranet 42 depuis mon téléphone.
 
 <br>
 
 ## Index
 
-- [Aperçu](#aperçu)
-- [Fonctionnalités](#fonctionnalités)
-- [Architecture & choix techniques](#architecture--choix-techniques)
-- [Sécurité & résilience réseau](#sécurité--résilience-réseau)
-- [Écrans](#écrans)
-- [Configuration & lancement](#configuration--lancement)
-- [API utilisées](#api-utilisées)
+- [Sujet](#sujet)
+- [Mon implémentation](#mon-implémentation)
+- [En détail](#en-détail)
+	- [Aperçu](#aperçu)
+	- [Fonctionnalités](#fonctionnalités)
+	- [Architecture & choix techniques](#architecture--choix-techniques)
+	- [Sécurité & résilience réseau](#sécurité--résilience-réseau)
+	- [Écrans](#écrans)
+	- [Configuration & lancement](#configuration--lancement)
+	- [API utilisées](#api-utilisées)
+- [Captures d'écrans](#captures-décran)
 - [Crédits](#crédits)
 
 <br>
 
-## Aperçu
+## Sujet
 
-- Auth 42 OAuth2 via `ASWebAuthenticationSession`, tokens en Keychain, refresh automatique.
-- Profil complet : identité, statut/cursus, coalitions, projets en cours/terminés, log time sur 14 jours (Swift Charts).
-- Recherche par login, tri biaisé vers ton campus courant.
-- Dashboard campus : infos, nombre d’utilisateurs actifs en temps réel, événements à venir.
-- Cache local JSON (profil, logs, campus) avec restauration immédiate, auto-refresh périodique.
-- UX polie : skeletons & shimmer, haptique, sections réutilisables, filtres en chips, fiches détaillées en sheets.
-- Slots d’évaluation : poser des créneaux par segments de 15 min et les supprimer avec confirmation système, états de chargement et retours haptiques.
+```
+- L’application doit comporter au moins 2 vues.  
+- Gérer tous les cas d’erreurs (login inexistant, erreur réseau, etc.).  
+- La deuxième vue doit afficher les informations du login si celui-ci existe.  
+- Afficher au moins 4 informations utilisateur (exemple : login, email, mobile, level, location, wallet, évaluations) + la photo de profil.  
+- Afficher les skills de l’utilisateur avec leur niveau et pourcentage.  
+- Afficher les projets réalisés (y compris ceux échoués).  
+- Permettre de naviguer en arrière vers la première vue.  
+- Utiliser une mise en page moderne et flexible (auto-layout, contraintes, etc.) pour s’adapter à toutes les tailles d’écran.  
+- Utiliser correctement l’authentification OAuth2 Intra (⚠️ un seul token, pas un par requête).  
+- [BONUS] Gestion de la renouvellement automatique du token à l’expiration, de manière transparente pour l’utilisateur.  
+```
 
 <br>
+
+## Mon implémentation
+| **Consignes** | OK? | **Implémentation** |
+|------------------------|:-----:|------------------------------------------|
+| L’application doit comporter au moins 2 vues | ✅ | 5 vues principales : Home, Search, Slots, Profile, Settings (`Views/`) |
+| Gérer tous les cas d’erreurs (login inexistant, erreur réseau, etc.) | ✅ | Gestion centralisée des erreurs dans chaque ViewModel (`UserSearchViewModel`, `UserProfileLoader`, `SlotsViewModel`). Affichage via `ErrorBanner`, `RetryRow` (`UI/StateDisplays.swift`) |
+| La deuxième vue doit afficher les informations du login si celui-ci existe | ✅ | `SearchView` + `UserProfileDetailView` : affichage du profil complet après recherche |
+| Afficher au moins 4 informations utilisateur + la photo de profil | ✅ | `UserProfileView` : photo, display name, login, statut, contacts, emplacement, wallets, points d’évaluations, cursus, coalitions, log time, achievements, projets |
+| Afficher les skills de l’utilisateur avec leur niveau et pourcentage | ✅ | `UserProfileView` : section skills, niveaux et pourcentages (mapping dans `UserProfile`) |
+| Afficher les projets réalisés (y compris ceux échoués) | ✅ | `UserProfileView` : projets actifs/terminés, badge d’état (validé, échoué, retry) via `ProfileRepository` |
+| Permettre de naviguer en arrière vers la première vue | ✅ | Navigation SwiftUI (`NavigationStack`, `.sheet`, `.navigationBarBackButtonHidden(false)`) |
+| Mise en page moderne et flexible (auto-layout, contraintes, etc.) | ✅ | SwiftUI, layout adaptatif, composants réutilisables (`SectionCard`, `InfoPillRow`, `CapsuleBadge`) |
+| Authentification OAuth2 Intra (un seul token, pas un par requête) | ✅ | Token centralisé dans `AuthService` (`Auth/AuthService.swift`), stockage Keychain, injection via `APIClient` |
+| BONUS - Gestion du renouvellement automatique du token à l’expiration | ✅ | Boucle de refresh automatique dans `AuthService`, rafraîchissement avant expiration, transparent pour l’utilisateur (`SettingsView`) |
+
+<br>
+
+## En détail
+<details>
+<summary>Voir ici</summary>
+
+## Aperçu
+
+- Authentification OAuth2 (API 42) via `ASWebAuthenticationSession`, tokens sécurisés en Keychain, refresh automatique avant expiration.
+- Profil complet : identité, cursus, coalitions, projets actifs/terminés, log time 14 jours (Swift Charts).
+- Recherche d’étudiants par login, résultats contextualisés par campus.
+- Dashboard campus : infos, utilisateurs actifs en temps réel, événements à venir.
+- Cache local JSON (profil, logs, campus) avec restauration immédiate, auto-refresh périodique.
+- UX avancée : skeletons, shimmer, haptique, sections réutilisables, chips de filtre, sheets détaillées.
+- Slots d’évaluation : création/suppression par segments de 15 min, confirmation système, feedback haptique, gestion des erreurs.
+
+<br>
+
 
 ## Fonctionnalités
 
-- Authentification sécurisée (OAuth2 « public ») et boucle de rafraîchissement des access tokens.
-- **Mon Profil** : avatar, wallet, points de correction, hôte courant, contact, statut/piscine, cursus + progression, coalitions, projets actifs/terminés, log time 14 jours.
-- **Recherche d’étudiants** par login, avec résultats contextualisés par campus.
-- **Accueil (Home)** : carte d’identité du campus (adresse, site web, effectifs), événements triés chronologiquement.
-- **Réglages** : état du compte, validité du jeton, info app, déconnexion.
-- **Accessibilité & confort** : états de chargement explicites, erreurs contextualisées avec action Réessayer, haptique, animations snappy.
-- **Slots d’évaluation** : poser des créneaux par segments de 15 min et les supprimer avec confirmation système, états de chargement et retours haptiques.
+- Authentification sécurisée (OAuth2), boucle de refresh des tokens.
+- **Mon Profil** : avatar, wallet, points de correction, hôte courant, contact, statut/piscine, cursus, progression, coalitions, projets actifs/terminés, log time 14 jours.
+- **Recherche** : par login, résultats filtrés par campus, ouverture du profil en plein écran.
+- **Accueil** : carte campus (adresse, site web, effectifs), liste des utilisateurs actifs, événements à venir.
+- **Réglages** : état du compte, validité du jeton, version app, déconnexion.
+- **Slots d’évaluation** : création/suppression, feedback haptique, gestion des erreurs et états de chargement.
+- **Accessibilité & confort** : skeletons, shimmer, animations snappy, erreurs contextualisées, action Réessayer.
 
 <br>
+
 
 ## Architecture & choix techniques
 
@@ -52,25 +97,25 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 
 #### UI / Views
 
-+ **Écrans** : BootView, LoginView, HomeView, SearchView, SlotsPageView, MyProfileView → UserProfileView.
-+ **Composants** : SectionCard, InfoPillRow, CapsuleBadge, LoadingListPlaceholder (+ shimmer), WeeklyLogCard (Charts), CreateSlotSheet.
-- **Thème** : usage de `Color("AccentColor")` dynamique selon coalition avec fallback, coins `.continuous`, silhouettes légères, lisibilité prioritaire.
+- **Écrans** : BootView, LoginView, HomeView, SearchView, SlotsPageView, UserProfileView.
+- **Composants** : SectionCard, InfoPillRow, CapsuleBadge, LoadingListPlaceholder, WeeklyLogCard (Charts), CreateSlotSheet.
+- **Thème** : `Color("AccentColor")` dynamique selon coalition, coins `.continuous`, design épuré, lisibilité prioritaire.
 
 #### Store & Loaders
 
-- **ProfileStore** : point d’accès unique au UserProfileLoader de l’utilisateur connecté.
-- **UserProfileLoader** : pipeline orchestré par section (basic/coalitions/projects/host/log) avec états indépendants, cache disque, refresh périodique (300s), fetch parallélisés et protection contre les races (token interne).
+- **ProfileStore** : accès unique au UserProfileLoader de l’utilisateur connecté.
+- **UserProfileLoader** : pipeline orchestré par section (basic/coalitions/projects/host/log), états indépendants, cache disque, refresh périodique (300s), fetch parallélisés, protection contre les races.
 
 #### Données & Mappers
 
-- **Models/UserProfile** + Raw Decodables pour isoler mapping/normalisation (dates ISO, regroupement projets, etc.).
-+ **Repositories** : ProfileRepository, CampusRepository, SearchRepository, LocationRepository, SlotsRepository.
+- **Models/UserProfile** + Raw Decodables pour mapping/normalisation (dates ISO, regroupement projets, etc.).
+- **Repositories** : ProfileRepository, CampusRepository, SearchRepository, LocationRepository, SlotsRepository.
 - **Caches** : ProfileCache, CampusCache (JSON sérialisés, ISO8601, dossier Caches utilisateur).
 
 #### Réseau
 
 - **APIClient (actor)** : URLSession dédié, retry exponentiel + jitter, gestion 429 Retry-After, 401 auto-refresh, pagination centralisée.
-- **SecureImageLoader (actor)** : NSCache (limites mémoire), déduplication des chargements, Authorization auto pour images privées, backoff exponentiel.
+- **SecureImageLoader (actor)** : NSCache, déduplication des chargements, Authorization auto pour images privées, backoff exponentiel.
 
 #### Auth
 
@@ -79,42 +124,45 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 #### Patterns notables
 
 - Actors pour sérialiser l’accès au réseau/cache et éviter les data races.
-- États par section pour une UX « progressive enhancement ».
-- Sheets unifiées pour détails d’items, Chips pour segmenter par cursus/coalition.
-- Charts (Swift Charts) pour le log time, avec barres et statistiques Total/Moyenne.
+- États par section pour une UX progressive.
+- Sheets unifiées pour détails d’items, chips pour segmenter par cursus/coalition.
+- Charts (Swift Charts) pour le log time, barres et statistiques Total/Moyenne.
 
 <br>
 
+
 ## Sécurité & résilience réseau
 
-- Keychain pour access_token et refresh_token.
+- Tokens stockés en Keychain, refresh automatique avant expiration.
 - ASWebAuthenticationSession avec state aléatoire, redirect_uri vérifiée.
 - Boucle de refresh calée sur l’expiration –1 min, replanifiée après chaque renouvellement.
 - **APIClient robuste** :
 	- 401 → refresh token et relance unique.
 	- 429 → respect du Retry-After.
 	- 5xx/URLError → exponential backoff + jitter, limites d’essais.
-- Images sécurisées : header Authorization injecté pour les URLs de l’API 42.
-- Caches avec TTL de 5 minutes côté campus, restauration immédiate hors-ligne.
+- Images sécurisées : header Authorization injecté pour les URLs API 42.
+- Caches avec TTL, restauration immédiate hors-ligne.
 
 <br>
+
 
 ## Écrans
 
-- **Boot** : initialisation + détection de session.
-- **Login** : bouton unique « Se connecter avec 42 », web auth intégrée, état « Connexion… ».
-- **Accueil** : carte campus (nom, adresse, site, effectifs), actifs en temps réel, événements à venir (sheet détail).
-- **Recherche** : champ « Rechercher un login… », résultats avec avatar/nom/login, ouverture du profil en plein écran.
-+ **Slots** : dépot, suppression et affichage de créneaux d'évaluation (sheet responsive, confirmation, feedback visuel/haptique).
+- **Boot** : initialisation, détection de session.
+- **Login** : bouton « Se connecter avec 42 », web auth intégrée, état « Connexion… ».
+- **Accueil** : carte campus (nom, adresse, site, effectifs), utilisateurs actifs, événements à venir (sheet détail).
+- **Recherche** : champ login, résultats avec avatar/nom/login, ouverture du profil en plein écran.
+- **Slots** : création, suppression, affichage des créneaux d'évaluation (sheet responsive, confirmation, feedback visuel/haptique).
 - **Profil** :
-	- Identité : avatar, affichage title/login, poste actuel, contact, langue du campus.
-	- À propos : statut/piscine, cursus avec chips + niveau et progression.
-	- Coalitions : chips de sélection, Score/Rang mis en carte.
-	- Log time : histogramme 14 jours + Total et Moyenne.
-	- En cours / Terminés : items groupés par cursus, tri chronologique, badge Note/Validé/Retry et lien repo si présent (sheet).
-- **Réglages** : login courant, validité du jeton, nom + version de l’app, soumission de bug, déconnexion confirmée.
+	- Identité : avatar, title/login, poste actuel, contact, langue du campus.
+	- À propos : statut/piscine, cursus avec chips, niveau et progression.
+	- Coalitions : chips de sélection, Score/Rang en carte.
+	- Log time : histogramme 14 jours, Total et Moyenne.
+	- Projets en cours/terminés : items groupés par cursus, tri chronologique, badge Note/Validé/Retry, lien repo si présent (sheet).
+- **Réglages** : login courant, validité du jeton, nom/version app, déconnexion confirmée.
 
 <br>
+
 
 ## Configuration & lancement
 
@@ -125,7 +173,7 @@ Design moderne, performances soignées, architecture modulaire prête pour l’�
 
 ### 1. Secrets & redirect
 
-Dans `Info.plist`, renseigne les clés suivantes (valeurs d’exemple) :
+Dans `Info.plist`, renseigne les clés suivantes :
 
 ```plaintext
 API_CLIENT_ID = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -133,7 +181,7 @@ API_CLIENT_SECRET = yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
 API_REDIRECT_URI = myapp42://oauth/callback
 ```
 
-Ajoute un URL Type dans le target iOS avec le Scheme de la redirect URI (`myapp42` dans l’exemple).  
+Ajoute un URL Type dans le target iOS avec le Scheme de la redirect URI (`myapp42`).
 Dans le dashboard 42, configure la Redirect URI exacte.
 
 ### 2. Build & run
@@ -144,15 +192,16 @@ Dans le dashboard 42, configure la Redirect URI exacte.
 
 <br>
 
+
 ## API utilisées
 
 - `GET /v2/me` — login courant, campus primaire.
-- `GET /v2/users/{login}` — profil de base + titres, cursus, achievements.
+- `GET /v2/users/{login}` — profil, titres, cursus, achievements.
 - `GET /v2/users/{login}/coalitions`
 - `GET /v2/users/{login}/coalitions_users`
 - `GET /v2/users/{login}/projects_users` — paginé
 - `GET /v2/users/{login}/locations` — actif/récent
-- `GET /v2/users/{login}/locations_stats` — agrégats horaires (fallback si indisponible → agrégation manuelle des locations)
+- `GET /v2/users/{login}/locations_stats` — agrégats horaires (fallback manuel si indisponible)
 - `GET /v2/campus/{id}` — infos campus
 - `GET /v2/campus/{id}/locations` — paginé, actifs
 - `GET /v2/campus/{id}/events` — paginé, futurs
@@ -161,7 +210,9 @@ Dans le dashboard 42, configure la Redirect URI exacte.
 - `POST /v2/slots` — création d’un créneau d’évaluation.
 - `DELETE /v2/slots/{id}` — suppression d’un créneau.
 
-Gestion centralisée des pages et du header Link côté APIClient.
+Gestion centralisée des pages et du header Link dans APIClient.
+
+</details>
 
 <br>
 
@@ -170,8 +221,8 @@ Gestion centralisée des pages et du header Link côté APIClient.
 ### Login
 
 <div align="center">
-	<img src="./utils/screens/login1.png" alt="Login 1" width="360">
-	<img src="./utils/screens/login2.png" alt="Login 2" width="360">
+	<img src="./utils/screens/login1.png" alt="Login 1" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/login2.png" alt="Login 2" width="360" style="border-radius:16px;">
 </div>
 
 ---
@@ -179,10 +230,10 @@ Gestion centralisée des pages et du header Link côté APIClient.
 ### Home
 
 <div align="center">
-	<img src="./utils/screens/home1.png" alt="Home 1" width="360">
-	<img src="./utils/screens/home2.png" alt="Home 2" width="360">
-	<img src="./utils/screens/home3.png" alt="Home 3" width="360">
-	<img src="./utils/screens/home4.png" alt="Home 4" width="360">
+	<img src="./utils/screens/home1.png" alt="Home 1" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/home2.png" alt="Home 2" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/home3.png" alt="Home 3" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/home4.png" alt="Home 4" width="360" style="border-radius:16px;">
 </div>
 
 ---
@@ -190,13 +241,13 @@ Gestion centralisée des pages et du header Link côté APIClient.
 ### Profile
 
 <div align="center">
-	<img src="./utils/screens/profile1.png" alt="Profile 1" width="360">
-	<img src="./utils/screens/profile2.png" alt="Profile 2" width="360">
-	<img src="./utils/screens/profile3.png" alt="Profile 3" width="360">
-	<img src="./utils/screens/profile4.png" alt="Profile 4" width="360">
-	<img src="./utils/screens/profile5.png" alt="Profile 5" width="360">
-	<img src="./utils/screens/profile6.png" alt="Profile 6" width="360">
-	<img src="./utils/screens/profile7.png" alt="Profile 7" width="360">
+	<img src="./utils/screens/profile1.png" alt="Profile 1" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/profile2.png" alt="Profile 2" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/profile3.png" alt="Profile 3" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/profile4.png" alt="Profile 4" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/profile5.png" alt="Profile 5" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/profile6.png" alt="Profile 6" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/profile7.png" alt="Profile 7" width="360" style="border-radius:16px;">
 </div>
 
 ---
@@ -204,8 +255,8 @@ Gestion centralisée des pages et du header Link côté APIClient.
 ### Search
 
 <div align="center">
-	<img src="./utils/screens/search1.png" alt="Search 1" width="360">
-	<img src="./utils/screens/search2.png" alt="Search 2" width="360">
+	<img src="./utils/screens/search1.png" alt="Search 1" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/search2.png" alt="Search 2" width="360" style="border-radius:16px;">
 </div>
 
 ---
@@ -213,11 +264,11 @@ Gestion centralisée des pages et du header Link côté APIClient.
 ### Slots
 
 <div align="center">
-	<img src="./utils/screens/slots1.png" alt="Slots 1" width="360">
-	<img src="./utils/screens/slots2.png" alt="Slots 2" width="360">
-	<img src="./utils/screens/slots3.png" alt="Slots 3" width="360">
-	<img src="./utils/screens/slots4.png" alt="Slots 4" width="360">
-	<img src="./utils/screens/slots5.png" alt="Slots 5" width="360">
+	<img src="./utils/screens/slots1.png" alt="Slots 1" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/slots2.png" alt="Slots 2" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/slots3.png" alt="Slots 3" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/slots4.png" alt="Slots 4" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/slots5.png" alt="Slots 5" width="360" style="border-radius:16px;">
 </div>
 
 ---
@@ -225,8 +276,8 @@ Gestion centralisée des pages et du header Link côté APIClient.
 ### Settings
 
 <div align="center">
-	<img src="./utils/screens/settings1.png" alt="Settings 1" width="360">
-	<img src="./utils/screens/settings2.png" alt="Settings 2" width="360">
+	<img src="./utils/screens/settings1.png" alt="Settings 1" width="360" style="border-radius:16px;">
+	<img src="./utils/screens/settings2.png" alt="Settings 2" width="360" style="border-radius:16px;">
 </div>
 
 <br>
@@ -238,10 +289,6 @@ Gestion centralisée des pages et du header Link côté APIClient.
 
 <br>
 
-### Points forts pour la soutenance
+## Grade
 
-- Code structuré (SRP), séparation claire UI / Store / Data / Réseau / Auth.
-- Actors + Combine + Swift Concurrency : sécurité des accès et UX fluide.
-- Résilience réseau (401/429/5xx), caches disque, fallbacks mesurés.
-- UI moderne et cohérente (sections, chips, sheets, charts), accessibilité et haptique intégrées.
-
+> En cours d'évaluation

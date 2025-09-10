@@ -6,12 +6,14 @@ import UIKit
 
 let PRIVATE_WEB_SESSION = true
 
+// récupération des infos du plist (envs)
 struct APIConfig {
     static var clientId: String { Bundle.main.object(forInfoDictionaryKey: "API_CLIENT_ID") as? String ?? "" }
     static var clientSecret: String { Bundle.main.object(forInfoDictionaryKey: "API_CLIENT_SECRET") as? String ?? "" }
     static var redirectUri: String { Bundle.main.object(forInfoDictionaryKey: "API_REDIRECT_URI") as? String ?? "" }
 }
 
+//  helper pour keychain : ajout (set), lecture (get), suppression (delete)
 enum KeychainHelper {
     static func set(_ value: String, service: String, account: String) {
         guard let data = value.data(using: .utf8) else { return }
@@ -43,6 +45,12 @@ private struct TokenResponse: Decodable {
 
 private struct MeLogin: Decodable { let login: String }
 
+//  classe principale pour authentification :
+//     - login via ASWebAuthenticationSession
+//     - stockage tokens dans keychain
+//     - rafraîchissement token avant expiration
+//     - logout (suppression tokens et données du user)
+//     - verif de l'etat d'authentification dans l'app
 @MainActor
 final class AuthService: NSObject, ObservableObject {
     enum Phase: Equatable { case unknown, unauthenticated, authenticated }
@@ -285,6 +293,7 @@ final class AuthService: NSObject, ObservableObject {
     }
 }
 
+// pour fenetre auth sur l'intra
 extension AuthService: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).flatMap({ $0.windows }).first(where: { $0.isKeyWindow }) {
