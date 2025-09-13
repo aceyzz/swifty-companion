@@ -34,6 +34,13 @@ struct UserProfile: Identifiable, Codable {
         let beginAt: Date?
         let endAt: Date?
         let name: String?
+        let skills: [Skill]
+    }
+
+    struct Skill: Identifiable, Codable, Equatable {
+        let id: Int
+        let name: String
+        let level: Double?
     }
 
     struct Coalition: Identifiable, Codable {
@@ -108,13 +115,17 @@ extension UserProfile {
         self.phone = raw.phone
         self.currentHost = currentHost ?? (raw.location?.isEmpty == false ? raw.location : nil)
         self.cursus = raw.cursus_users.map {
-            UserProfile.Cursus(
+            let skills: [UserProfile.Skill] = ($0.skills ?? []).map { s in
+                UserProfile.Skill(id: s.id, name: s.name, level: s.level)
+            }
+            return UserProfile.Cursus(
                 id: $0.cursus_id ?? 0,
                 grade: $0.grade,
                 level: $0.level,
                 beginAt: DateParser.iso($0.begin_at),
                 endAt: DateParser.iso($0.end_at),
-                name: $0.cursus.name
+                name: $0.cursus.name,
+                skills: skills
             )
         }
         self.coalitions = coalitions
@@ -260,6 +271,13 @@ struct CursusUserRaw: Codable {
     let begin_at: String?
     let end_at: String?
     let cursus: CursusRaw
+    let skills: [SkillRaw]?
+}
+
+struct SkillRaw: Codable {
+    let id: Int
+    let name: String
+    let level: Double?
 }
 
 struct CoalitionRaw: Codable { let id: Int; let name: String; let slug: String; let color: String; let image_url: String; let score: Int? }

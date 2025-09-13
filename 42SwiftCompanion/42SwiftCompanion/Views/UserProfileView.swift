@@ -418,6 +418,25 @@ struct StatusCursusCard: View {
                             } else {
                                 Text("Niveau indisponible").font(.caption).foregroundStyle(.secondary)
                             }
+							if !c.skills.isEmpty {
+								VStack(alignment: .leading, spacing: 0) {
+									HStack(spacing: 8) {
+										Image(systemName: "star.fill")
+										Text("Skills").font(.subheadline)
+									}
+									ScrollView(.horizontal, showsIndicators: false) {
+										HStack(spacing: 8) {
+											ForEach(c.skills) { sk in
+												let label = sk.level.map { "\(sk.name) - lvl.\(String(format: "%.2f", $0))" } ?? sk.name
+												FilterChip(text: label, isSelected: false, action: {})
+											}
+										}
+										.padding(.top, 6)
+									}
+									.frame(maxWidth: .infinity)
+								}
+								.padding(.top, 12)
+							}
                         }
                     }
                 }
