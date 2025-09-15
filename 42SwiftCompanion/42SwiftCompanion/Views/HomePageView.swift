@@ -113,22 +113,31 @@ final class HomeDashboardViewModel: ObservableObject {
     private func attach(campusId: Int?) {
         guard let id = campusId, id != currentCampusId else { return }
         currentCampusId = id
+        resolveTask?.cancel()
         attachTask?.cancel()
         loader?.stop()
         loader = nil
-        dashboard = nil
-        lastUpdated = nil
-        state = .loading
 
-        let l = CampusLoader(campusId: id)
-        loader = l
-        l.$state.assign(to: &$state)
-        l.$dashboard.assign(to: &$dashboard)
-        l.$lastUpdated.assign(to: &$lastUpdated)
-        l.start()
+        let cache = CampusCache(campusId: id)
+        attachTask = Task { [weak self] in
+            guard let self else { return }
 
-        attachTask = Task { [weak l] in
-            guard let l else { return }
+            if let cached = await cache.load() {
+                self.dashboard = cached.dashboard
+                self.lastUpdated = cached.dashboard.fetchedAt
+                self.state = .loaded
+            } else {
+                self.dashboard = nil
+                self.lastUpdated = nil
+                self.state = .loading
+            }
+
+            let l = CampusLoader(campusId: id)
+            self.loader = l
+            l.$state.assign(to: &self.$state)
+            l.$dashboard.assign(to: &self.$dashboard)
+            l.$lastUpdated.assign(to: &self.$lastUpdated)
+            l.start()
             await l.refreshNow()
         }
     }
