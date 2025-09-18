@@ -291,4 +291,4 @@ Gestion centralisée des pages et du header Link dans APIClient.
 
 ## Grade
 
-> En cours d'évaluation
+<img src="./utils/110.png" alt="Grade" width="150">
